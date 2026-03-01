@@ -277,6 +277,18 @@ pre{background:#080c12;border:1px solid #1a2332;border-radius:10px;padding:20px;
       </div></div>
     </div>
   </div>
+
+  <!-- Network Topology Monitor -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="card-title" style="padding:24px 24px 0 24px"><span class="ct-icon" style="background:#3b82f622;color:#60a5fa">&#127760;</span>网络拓扑监控</div>
+    <div id="topoContainer" style="position:relative;height:420px;background:linear-gradient(180deg,#080c12 0%,#0a1018 100%);overflow:hidden">
+      <canvas id="topoCanvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+      <div id="topoOverlay" style="position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end;padding:20px">
+        <div id="topoStats" style="display:flex;gap:20px;flex-wrap:wrap"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ══════ 节点管理 ══════ -->
@@ -684,7 +696,113 @@ async function clearLogs(){if(!confirm('清空所有日志？'))return;try{await
   updateManualForm();
   setInterval(loadSysInfo,10000);
   setInterval(async()=>{await loadTraffic();loadStatus()},3000);
+  initTopo();
 })();
+
+// ── Network Topology Visualization ──
+function initTopo(){
+  const canvas=document.getElementById('topoCanvas');
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  let W,H,particles=[],nodes_g=[],frame=0;
+
+  function resize(){W=canvas.width=canvas.offsetWidth*2;H=canvas.height=canvas.offsetHeight*2;ctx.scale(1,1)}
+  resize();window.addEventListener('resize',resize);
+
+  const colors={router:'#3b82f6',device:'#22c55e',node:'#f59e0b',direct:'#64748b',line:'#1e3a5f',particle:'#3b82f6'};
+
+  function drawNode(x,y,r,color,label,sub,pulse){
+    if(pulse){ctx.beginPath();ctx.arc(x,y,r+8+Math.sin(frame*0.05)*4,0,Math.PI*2);ctx.fillStyle=color+'15';ctx.fill()}
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+    const grd=ctx.createRadialGradient(x,y,0,x,y,r);grd.addColorStop(0,color+'cc');grd.addColorStop(1,color+'44');
+    ctx.fillStyle=grd;ctx.fill();
+    ctx.strokeStyle=color+'66';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#f1f5f9';ctx.font='bold '+(r>20?'24':'18')+'px sans-serif';ctx.textAlign='center';ctx.fillText(label,x,y+6);
+    if(sub){ctx.fillStyle='#94a3b8';ctx.font='14px sans-serif';ctx.fillText(sub,x,y+r+18)}
+  }
+
+  function drawLine(x1,y1,x2,y2,color,speed){
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=color||colors.line;ctx.lineWidth=2;ctx.stroke();
+    if(speed>0){
+      const t=((frame*speed*0.02)%1);
+      const px=x1+(x2-x1)*t,py=y1+(y2-y1)*t;
+      ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fillStyle='#3b82f6';ctx.fill();
+      ctx.beginPath();ctx.arc(px,py,8,0,Math.PI*2);ctx.fillStyle='#3b82f622';ctx.fill();
+    }
+  }
+
+  function drawTrafficBar(x,y,w,h,val,max,color){
+    ctx.fillStyle='#1a2332';ctx.fillRect(x,y,w,h);
+    const fw=Math.min(1,val/Math.max(max,1))*w;
+    const grd=ctx.createLinearGradient(x,y,x+fw,y);grd.addColorStop(0,color+'88');grd.addColorStop(1,color);
+    ctx.fillStyle=grd;ctx.fillRect(x,y,fw,h);
+  }
+
+  async function loadTopoData(){
+    try{
+      const devs=D.length?D:await jget('/api/devices');
+      const nodesData=N.length?N:await jget('/api/nodes');
+      const activeNodes=new Set(devs.filter(d=>d.managed&&d.node_tag&&d.node_tag!=='direct').map(d=>d.node_tag));
+      nodes_g=[];
+      const cx=W/2,cy=120;
+      nodes_g.push({type:'router',x:cx,y:cy,r:32,color:colors.router,label:'R',sub:'MACFlow',pulse:true});
+
+      const managedDevs=devs.filter(d=>d.managed);
+      const unmanagedDevs=devs.filter(d=>!d.managed);
+      const devStartX=80,devY=cy+160,devGap=Math.min(140,(W-160)/Math.max(managedDevs.length,1));
+      managedDevs.forEach((d,i)=>{
+        const x=devStartX+i*devGap+devGap/2;
+        nodes_g.push({type:'device',x,y:devY,r:22,color:colors.device,label:d.name?.substring(0,2)||'D',
+          sub:(d.node_tag||'直连')+(d.remark?' '+d.remark:''),
+          mac:d.mac,node_tag:d.node_tag,managed:true,speed:Math.random()*3+1});
+      });
+
+      const usedNodes=nodesData.filter(n=>activeNodes.has(n.tag)&&n.enabled);
+      const nodeStartX=80,nodeY=cy+320,nodeGap=Math.min(160,(W-160)/Math.max(usedNodes.length,1));
+      usedNodes.forEach((n,i)=>{
+        const x=nodeStartX+i*nodeGap+nodeGap/2;
+        const lat=n.latency>0?n.latency+'ms':'';
+        nodes_g.push({type:'node',x,y:nodeY,r:20,color:colors.node,label:n.type?.substring(0,2).toUpperCase()||'N',
+          sub:n.tag?.substring(0,12)+(lat?' '+lat:''),tag:n.tag,speed:Math.random()*2+0.5});
+      });
+    }catch(e){}
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    frame++;
+    const router=nodes_g.find(n=>n.type==='router');
+    if(!router){requestAnimationFrame(render);return}
+
+    nodes_g.filter(n=>n.type==='device').forEach(d=>{
+      drawLine(router.x,router.y+router.r,d.x,d.y-d.r,colors.line+'88',d.speed||1);
+      const targetNode=nodes_g.find(n=>n.type==='node'&&n.tag===d.node_tag);
+      if(targetNode)drawLine(d.x,d.y+d.r,targetNode.x,targetNode.y-targetNode.r,'#f59e0b33',d.speed||0.5);
+    });
+
+    nodes_g.forEach(n=>drawNode(n.x,n.y,n.r,n.color,n.label,n.sub,n.pulse));
+
+    const statsEl=document.getElementById('topoStats');
+    if(statsEl&&frame%60===1){
+      const devCount=nodes_g.filter(n=>n.type==='device').length;
+      const nodeCount=nodes_g.filter(n=>n.type==='node').length;
+      statsEl.innerHTML=`
+        <span style="background:#0a0f1888;padding:6px 14px;border-radius:8px;font-size:13px;color:#94a3b8;border:1px solid #1a2332">
+          纳管设备: <b style="color:#22c55e">${devCount}</b></span>
+        <span style="background:#0a0f1888;padding:6px 14px;border-radius:8px;font-size:13px;color:#94a3b8;border:1px solid #1a2332">
+          活跃节点: <b style="color:#f59e0b">${nodeCount}</b></span>
+        <span style="background:#0a0f1888;padding:6px 14px;border-radius:8px;font-size:13px;color:#94a3b8;border:1px solid #1a2332">
+          下行: <b style="color:#06b6d4">${_tDown}</b></span>
+        <span style="background:#0a0f1888;padding:6px 14px;border-radius:8px;font-size:13px;color:#94a3b8;border:1px solid #1a2332">
+          上行: <b style="color:#3b82f6">${_tUp}</b></span>`;
+    }
+    requestAnimationFrame(render);
+  }
+
+  loadTopoData();
+  setInterval(loadTopoData,10000);
+  render();
+}
 </script>
 </body>
 </html>
