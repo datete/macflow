@@ -1,0 +1,22 @@
+#!/usr/bin/expect -f
+set timeout 15
+
+spawn telnet 127.0.0.1 4445
+expect {
+    "#" { }
+    timeout { send "\r"; exp_continue }
+}
+
+send "uci delete dropbear.@dropbear\[0\].Interface 2>/dev/null; uci set dropbear.@dropbear\[0\].Port='22'; uci set dropbear.@dropbear\[0\].GatewayPorts='on'; uci commit dropbear; /etc/init.d/dropbear restart; echo SSH_FIX_DONE\r"
+expect "SSH_FIX_DONE"
+
+send "netstat -tlnp 2>/dev/null | grep 22 || ss -tlnp | grep 22; echo PORT_CHECK_DONE\r"
+expect "PORT_CHECK_DONE"
+
+send "uci show firewall | grep -c zone; echo FW_CHECK_DONE\r"
+expect "FW_CHECK_DONE"
+
+send "uci add firewall rule; uci set firewall.@rule\[-1\].name='Allow-SSH-WAN'; uci set firewall.@rule\[-1\].src='wan'; uci set firewall.@rule\[-1\].dest_port='22'; uci set firewall.@rule\[-1\].proto='tcp'; uci set firewall.@rule\[-1\].target='ACCEPT'; uci commit firewall; fw4 reload 2>/dev/null || /etc/init.d/firewall restart; echo FW_RULE_DONE\r"
+expect "FW_RULE_DONE"
+
+puts "\n=== SSH fix complete ==="

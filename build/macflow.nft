@@ -1,0 +1,46 @@
+table inet macflow {
+  map mac_to_mark {
+    type ether_addr : mark
+    elements = {
+      02:AA:BB:CC:DD:01 : 0x100,
+      02:AA:BB:CC:DD:02 : 0x200
+    }
+  }
+
+  set managed_macs {
+    type ether_addr
+    elements = {
+      02:AA:BB:CC:DD:01,
+      02:AA:BB:CC:DD:02
+    }
+  }
+
+  set doh_ipv4 {
+    type ipv4_addr
+    elements = { 1.1.1.1, 8.8.8.8 }
+  }
+
+  chain prerouting_mark {
+    type filter hook prerouting priority mangle; policy accept;
+    meta mark set ct mark
+    meta mark set 0x0
+    ct state new ether saddr @managed_macs meta mark set ether saddr map @mac_to_mark
+    ct mark set meta mark
+  }
+
+  chain dns_guard {
+    type nat hook prerouting priority dstnat; policy accept;
+    # 仅策略域设备的 DNS 强制回收至本地受控 DNS
+    meta mark != 0x0 udp dport 53 counter redirect to :6053
+    meta mark != 0x0 tcp dport 53 counter redirect to :6053
+  }
+
+  chain forward_guard {
+    type filter hook forward priority filter; policy accept;
+    # 策略域设备阻断已知 DoH/DoQ 端点（样例，后续可动态维护）
+    meta mark != 0x0 ip daddr @doh_ipv4 tcp dport 443 counter drop
+    meta mark != 0x0 ip daddr @doh_ipv4 udp dport 443 counter drop
+    meta mark != 0x0 udp dport 853 counter drop
+    meta mark != 0x0 tcp dport 853 counter drop
+  }
+}

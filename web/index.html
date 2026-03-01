@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>MACFlow - iStoreOS Network Shield</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",sans-serif;background:#060a10;color:#cbd5e1;min-height:100vh;font-size:15px;line-height:1.5}
+
+.topbar{background:linear-gradient(180deg,#0f1520 0%,#0a0f18 100%);height:60px;display:flex;align-items:center;padding:0 28px;position:sticky;top:0;z-index:1000;border-bottom:1px solid #1a2332;backdrop-filter:blur(12px)}
+.topbar .logo{font-size:20px;font-weight:800;margin-right:36px;display:flex;align-items:center;gap:10px;color:#fff}
+.topbar .logo i{display:inline-block;width:32px;height:32px;background:linear-gradient(135deg,#3b82f6,#06b6d4);border-radius:8px;position:relative}
+.topbar .logo i::after{content:"";position:absolute;inset:6px;border:2px solid rgba(255,255,255,.6);border-radius:4px}
+.topbar .logo small{font-size:11px;font-weight:500;color:#3b82f6;background:#3b82f615;padding:3px 10px;border-radius:20px;border:1px solid #3b82f633}
+.tabs{display:flex;gap:6px;background:#0a0f18;padding:4px;border-radius:10px;border:1px solid #1a2332}
+.tabs button{background:none;border:none;color:#475569;font-size:14px;font-weight:600;padding:8px 20px;cursor:pointer;border-radius:8px;transition:.2s;letter-spacing:.3px}
+.tabs button:hover{color:#e2e8f0;background:#1a233244}
+.tabs button.active{color:#fff;background:linear-gradient(135deg,#1e3a5f,#1a2332);box-shadow:0 2px 8px #0005}
+
+.main{max-width:1520px;margin:0 auto;padding:24px 28px}
+.tab-content{display:none}.tab-content.active{display:block;animation:fadeUp .3s ease-out}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+@media(max-width:1200px){.cols3{grid-template-columns:1fr 1fr}}
+@media(max-width:960px){.cols,.cols3{grid-template-columns:1fr}}
+
+.card{background:#0c1219;border:1px solid #1a2332;border-radius:16px;padding:24px;margin-bottom:20px;position:relative;overflow:hidden}
+.card::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#3b82f633,transparent)}
+.card-title{font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.card-title .ct-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:12px}
+.card.collapsed .card-body{display:none}
+
+/* Hero */
+.hero-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+@media(max-width:1100px){.hero-grid{grid-template-columns:repeat(2,1fr)}}
+.hero-card{background:linear-gradient(145deg,#0c1219,#101820);border:1px solid #1a2332;border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;gap:4px;transition:.25s;position:relative;overflow:hidden}
+.hero-card::after{content:"";position:absolute;top:0;right:0;width:60px;height:60px;border-radius:0 16px 0 60px;opacity:.06}
+.hero-card:hover{transform:translateY(-4px);box-shadow:0 12px 32px #0008;border-color:#3b82f655}
+.hero-card .hc-label{font-size:12px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.8px}
+.hero-card .hc-value{font-size:32px;font-weight:800;color:#f1f5f9;line-height:1.1;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.hero-card .hc-value.green{color:#22c55e}.hero-card .hc-value.red{color:#ef4444}
+.hero-card .hc-value.yellow{color:#eab308}.hero-card .hc-value.blue{color:#3b82f6}
+.hero-card .hc-value.cyan{color:#06b6d4}
+.hero-card .hc-sub{font-size:12px;color:#334155;margin-top:2px}
+
+/* Shield Panel */
+.shield-panel{background:linear-gradient(145deg,#0c1219,#0a1018);border:1px solid #1a2332;border-radius:16px;padding:28px;margin-bottom:24px;position:relative;overflow:hidden}
+.shield-panel::before{content:"";position:absolute;top:-40px;right:-40px;width:200px;height:200px;background:radial-gradient(circle,#3b82f608 0%,transparent 70%);pointer-events:none}
+.shield-header{display:flex;align-items:center;gap:20px;margin-bottom:24px}
+.shield-icon{width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;position:relative}
+.shield-icon.active{background:linear-gradient(135deg,#16a34a22,#06b6d422);border:2px solid #22c55e44;box-shadow:0 0 24px #22c55e15}
+.shield-icon.inactive{background:#1e293b;border:2px solid #33415544}
+.shield-title{font-size:22px;font-weight:800;color:#f1f5f9}
+.shield-sub{font-size:14px;color:#475569;margin-top:2px}
+.shield-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:900px){.shield-grid{grid-template-columns:repeat(2,1fr)}}
+.shield-item{background:#0a0f18;border:1px solid #1a2332;border-radius:12px;padding:16px;display:flex;align-items:center;gap:14px;transition:.15s}
+.shield-item:hover{border-color:#334155}
+.si-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.si-dot.on{background:#22c55e;box-shadow:0 0 10px #22c55e55}
+.si-dot.off{background:#ef4444;box-shadow:0 0 10px #ef444444}
+.si-dot.warn{background:#eab308;box-shadow:0 0 10px #eab30844}
+.si-name{flex:1;font-size:14px;color:#94a3b8;font-weight:500}
+.si-status{font-size:13px;font-weight:700}
+.si-status.on{color:#22c55e}.si-status.off{color:#ef4444}.si-status.warn{color:#eab308}
+
+/* Health Bar */
+.health-bar{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.health-item{display:flex;align-items:center;gap:10px;padding:10px 18px;background:#0c1219;border-radius:12px;border:1px solid #1a2332;flex:1;min-width:170px;transition:.15s}
+.health-item:hover{border-color:#334155}
+.health-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.health-dot.ok{background:#22c55e;box-shadow:0 0 8px #22c55e55}
+.health-dot.warn{background:#eab308;box-shadow:0 0 8px #eab30855}
+.health-dot.critical{background:#ef4444;box-shadow:0 0 8px #ef444455}
+.health-dot.unknown{background:#334155}
+.health-name{font-size:13px;color:#64748b;font-weight:500;flex:1}
+.health-status{font-size:12px;font-weight:700}
+.health-status.ok{color:#22c55e}.health-status.warn{color:#eab308}
+.health-status.critical{color:#ef4444}.health-status.unknown{color:#475569}
+
+/* System Bar */
+.sys-bar{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:24px;background:#0c1219;border:1px solid #1a2332;border-radius:12px;padding:14px 24px;font-size:13px;color:#475569;font-weight:500;font-variant-numeric:tabular-nums}
+.sys-bar span{display:flex;align-items:center;gap:6px}
+.sys-bar b{color:#94a3b8;font-weight:600}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:14px 18px;color:#475569;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px;background:#080c12;border-bottom:1px solid #1a2332}
+td{padding:14px 18px;border-bottom:1px solid #1a233266;font-size:14px;color:#cbd5e1}
+td select{height:40px;padding:0 12px;font-size:14px;max-width:300px;background:#0a0f18;color:#cbd5e1;border:1px solid #1a2332;border-radius:8px}
+tr:hover td{background:#1a233222}
+.empty{text-align:center;padding:48px;color:#334155;font-size:15px;border:1px dashed #1a2332;border-radius:12px}
+
+input,select,textarea{background:#0a0f18;color:#e2e8f0;border:1px solid #1a2332;border-radius:8px;padding:0 14px;font-size:14px;height:44px;transition:.15s;font-family:inherit}
+textarea{padding:14px;height:auto;min-height:80px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f618}
+input.full{flex:1;min-width:200px}
+.fr{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.fr label{font-size:14px;color:#475569;font-weight:600;min-width:80px}
+
+button{background:#1a2332;color:#e2e8f0;border:none;border-radius:8px;padding:0 20px;font-size:14px;font-weight:600;height:44px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;font-family:inherit}
+button:hover{background:#243447;box-shadow:0 2px 8px #0003}
+button:active{transform:scale(.97)}
+button.p{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff}
+button.p:hover{box-shadow:0 4px 16px #16a34a33}
+button.d{background:#1c0f12;color:#f87171;border:1px solid #7f1d1d55}
+button.d:hover{background:#991b1b;color:#fff}
+button.s{height:34px;padding:0 14px;font-size:13px;border-radius:7px}
+button:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+button.apply-btn{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff}
+button.apply-btn:hover{box-shadow:0 4px 16px #2563eb33}
+button.apply-btn.pending{animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes breathe{0%,100%{box-shadow:0 0 6px #22c55e44}50%{box-shadow:0 0 16px 4px #22c55e66}}
+
+.sw{position:relative;display:inline-block;width:52px;height:28px}
+.sw input{opacity:0;width:0;height:0}
+.sw .sl{position:absolute;cursor:pointer;inset:0;background:#1a2332;border-radius:28px;transition:.3s}
+.sw .sl::before{content:"";position:absolute;height:22px;width:22px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 2px 6px #0005}
+.sw input:checked+.sl{background:#16a34a}
+.sw input:checked+.sl::before{transform:translateX(24px)}
+.sw-lg{width:60px;height:32px}
+.sw-lg .sl::before{height:26px;width:26px}
+.sw-lg input:checked+.sl::before{transform:translateX(28px)}
+.status-dot{width:14px;height:14px;border-radius:50%;display:inline-block;flex-shrink:0}
+.status-dot.on{background:#22c55e;animation:breathe 2s ease-in-out infinite}
+.status-dot.off{background:#334155}
+
+.badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap}
+.badge.green{background:#16a34a1a;color:#4ade80;border:1px solid #16a34a44}
+.badge.yellow{background:#eab3081a;color:#facc15;border:1px solid #eab30844}
+.badge.red{background:#ef44441a;color:#f87171;border:1px solid #ef444444}
+.badge.blue{background:#3b82f61a;color:#60a5fa;border:1px solid #3b82f644}
+.badge.gray{background:#3341551a;color:#94a3b8;border:1px solid #33415544}
+.badge.purple{background:#8b5cf61a;color:#c4b5fd;border:1px solid #8b5cf644}
+.badge.cyan{background:#06b6d41a;color:#22d3ee;border:1px solid #06b6d444}
+
+.toolbar{display:flex;gap:12px;margin-bottom:18px;align-items:center;flex-wrap:wrap;background:#080c12;padding:14px 18px;border-radius:10px;border:1px solid #1a2332}
+.search-box{position:relative}
+.search-box input{padding-left:40px;width:300px}
+.search-box::before{content:"";position:absolute;left:14px;top:50%;transform:translateY(-50%);width:14px;height:14px;border:2px solid #334155;border-radius:50%}
+.search-box::after{content:"";position:absolute;left:26px;top:58%;width:2px;height:7px;background:#334155;transform:rotate(-45deg)}
+.page-info{font-size:13px;color:#475569;margin-left:auto;background:#1a2332;padding:6px 14px;border-radius:20px;font-weight:600}
+
+.form-group{margin-bottom:18px;padding:24px;background:#080c12;border-radius:12px;border:1px solid #1a2332}
+.form-label{font-size:11px;color:#3b82f6;margin-bottom:12px;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;display:block}
+.form-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.form-row:last-child{margin-bottom:0}
+.form-row label{font-size:14px;color:#475569;font-weight:600;min-width:70px}
+.tag-hint{font-size:12px;color:#334155;margin-top:8px}
+
+.msg{padding:14px 18px;border-radius:10px;font-size:14px;margin-top:14px;display:none;animation:fadeUp .2s}
+.msg.ok{display:block;background:#16a34a12;color:#4ade80;border:1px solid #16a34a33}
+.msg.err{display:block;background:#ef444412;color:#f87171;border:1px solid #ef444433}
+.msg.info{display:block;background:#3b82f612;color:#60a5fa;border:1px solid #3b82f633}
+
+.alert-row{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #1a2332}
+.alert-row:last-child{border-bottom:none}
+
+pre{background:#080c12;border:1px solid #1a2332;border-radius:10px;padding:20px;font-size:14px;font-family:'JetBrains Mono',Consolas,monospace;max-height:500px;overflow:auto;line-height:1.8;color:#475569}
+.preview-table{margin-top:12px;max-height:320px;overflow-y:auto;border:1px solid #1a2332;border-radius:10px}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#1a2332;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#243447}
+
+.remark-input{background:transparent;border:1px solid transparent;padding:4px 8px;font-size:13px;color:#64748b;border-radius:6px;width:120px;height:30px;transition:.15s}
+.remark-input:hover{border-color:#1a2332}
+.remark-input:focus{border-color:#3b82f6;background:#0a0f18;color:#e2e8f0}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><i></i>MACFlow<small>SHIELD v2</small></div>
+  <div class="tabs" id="navTabs">
+    <button class="active" onclick="showTab('basic')">仪表盘</button>
+    <button onclick="showTab('nodes')">节点管理</button>
+    <button onclick="showTab('flow')">设备分流</button>
+    <button onclick="showTab('access')">访问控制</button>
+    <button onclick="showTab('logs')">运行日志</button>
+  </div>
+  <a id="luciLink" href="#" onclick="openLuci();return false" style="margin-left:auto;color:#475569;font-size:13px;text-decoration:none;padding:6px 16px;border:1px solid #1a2332;border-radius:8px;transition:.15s;display:flex;align-items:center;gap:6px;cursor:pointer" onmouseover="this.style.borderColor='#334155';this.style.color='#e2e8f0'" onmouseout="this.style.borderColor='#1a2332';this.style.color='#475569'">iStoreOS 管理</a>
+</div>
+<div class="main">
+
+<!-- ══════ 仪表盘 ══════ -->
+<div id="tab-basic" class="tab-content active">
+  <div class="hero-grid" id="statusGrid"></div>
+  <div class="sys-bar" id="sysBar"><span>Loading...</span></div>
+
+  <!-- DNS Shield Panel -->
+  <div class="shield-panel">
+    <div class="shield-header">
+      <div class="shield-icon active" id="shieldIcon">&#128737;</div>
+      <div><div class="shield-title" id="shieldTitle">DNS 防泄露保护</div><div class="shield-sub" id="shieldSub">实时监控 DNS/DoH/DoQ/IPv6/STUN 泄露通道</div></div>
+      <div style="margin-left:auto;display:flex;gap:12px">
+        <button onclick="loadHealth()">刷新检测</button>
+        <button class="p" onclick="testRouterEgress()" style="height:44px">检测出口 IP</button>
+      </div>
+    </div>
+    <div class="shield-grid" id="shieldGrid"></div>
+    <div id="egressResult" style="margin-top:16px"></div>
+    <span id="egressStatus" style="font-size:13px;color:#334155;margin-top:8px;display:block"></span>
+  </div>
+
+  <div class="health-bar" id="healthGrid">
+    <div class="health-item"><div class="health-dot unknown"></div><span class="health-name">Loading...</span></div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#16a34a22;color:#22c55e">&#9889;</span>主开关</div><div class="card-body">
+        <div class="fr">
+          <label style="font-size:18px;font-weight:700;color:#e2e8f0">分流服务</label>
+          <label class="sw sw-lg"><input type="checkbox" id="mainSw" onchange="toggleSvc(this.checked)"><span class="sl"></span></label>
+          <span id="swDot" class="status-dot off"></span>
+          <span id="swLabel" style="font-size:16px;color:#475569;font-weight:600">-</span>
+        </div>
+      </div></div>
+
+      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#ef444422;color:#f87171">&#9888;</span>活动告警<span id="alertCntBadge" style="font-size:12px;color:#475569;margin-left:auto;font-weight:500"></span></div><div class="card-body">
+        <div id="alertList"><div class="empty" style="padding:24px">系统正常运行，无告警</div></div>
+      </div></div>
+
+      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#3b82f622;color:#60a5fa">&#128279;</span>节点源管理</div><div class="card-body">
+        <div class="toolbar">
+          <input id="srcName" placeholder="源名称" style="width:140px"/>
+          <input id="srcUrl" placeholder="http://panel:port" class="full"/>
+          <input id="srcUser" placeholder="用户名" style="width:120px"/>
+          <input id="srcPass" type="password" placeholder="密码" style="width:120px"/>
+          <button class="p" onclick="addSource()">添加</button>
+          <button onclick="syncAllSources()">全部同步</button>
+        </div>
+        <table><thead><tr><th>名称</th><th>地址</th><th>节点</th><th>状态</th><th>操作</th></tr></thead><tbody id="srcTable"></tbody></table>
+        <div id="srcMsg"></div>
+      </div></div>
+    </div>
+    <div>
+      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#8b5cf622;color:#c4b5fd">&#128272;</span>DNS / 安全策略</div><div class="card-body">
+        <div class="fr"><label>默认策略</label><select id="defPolicy" style="flex:1"><option value="whitelist">白名单（新设备无外网）</option><option value="direct">直连（新设备可上网）</option><option value="block">完全阻断</option></select></div>
+        <div class="fr"><label>故障策略</label><select id="failPolicy" style="width:220px"><option value="fail-close">fail-close（断网保护）</option><option value="fail-open">fail-open（放行）</option></select></div>
+        <div class="fr"><label>DNS 端口</label><input id="dnsPort" type="number" value="6053" style="width:100px"/><label style="min-width:auto">DoH 阻断</label><label class="sw"><input type="checkbox" id="dnsBlock" checked><span class="sl"></span></label><span style="font-size:12px;color:#334155">阻断加密 DNS 绕行</span></div>
+        <div style="margin:16px 0"><label style="font-size:13px;color:#475569;font-weight:600;display:block;margin-bottom:10px">DNS 服务器</label>
+        <div id="dnsServerList" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="8.8.8.8" checked style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Google DNS</div><div style="font-size:12px;color:#475569;font-family:monospace">8.8.8.8</div></div></label>
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="8.8.4.4" style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Google DNS 2</div><div style="font-size:12px;color:#475569;font-family:monospace">8.8.4.4</div></div></label>
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="1.1.1.1" checked style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Cloudflare</div><div style="font-size:12px;color:#475569;font-family:monospace">1.1.1.1</div></div></label>
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="1.0.0.1" style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Cloudflare 2</div><div style="font-size:12px;color:#475569;font-family:monospace">1.0.0.1</div></div></label>
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="208.67.222.222" style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">OpenDNS</div><div style="font-size:12px;color:#475569;font-family:monospace">208.67.222.222</div></div></label>
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="9.9.9.9" style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Quad9</div><div style="font-size:12px;color:#475569;font-family:monospace">9.9.9.9</div></div></label>
+        </div></div>
+        <div class="fr" style="margin-top:12px"><label>强制重定向</label><label class="sw"><input type="checkbox" id="dnsForce" checked><span class="sl"></span></label><span style="font-size:13px;color:#475569">所有 DNS 查询强制走选中的服务器，防止泄露</span></div>
+        <button class="p" onclick="saveSettings()" style="min-width:160px">保存策略</button>
+        <div id="setMsg"></div>
+      </div></div>
+
+      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#06b6d422;color:#22d3ee">&#128196;</span>订阅管理</div><div class="card-body">
+        <div class="toolbar"><input id="subName" placeholder="订阅名" style="width:140px"/><input id="subUrl" placeholder="https://sub-url..." class="full"/><button class="p" onclick="addSub()">添加</button></div>
+        <table><thead><tr><th>名称</th><th>节点</th><th>操作</th></tr></thead><tbody id="subTable"></tbody></table>
+      </div></div>
+
+      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#eab30822;color:#facc15">&#128640;</span>策略版本</div><div class="card-body">
+        <div class="fr"><label>当前</label><span id="curVer" style="color:#22c55e;font-weight:700;font-size:20px">-</span></div>
+        <div class="fr"><label>回滚</label><span id="rbVer" style="color:#eab308;font-weight:500">-</span></div>
+        <div style="display:flex;gap:12px;margin-top:8px"><button class="p" onclick="applyAll()" style="min-width:160px">全局应用</button><button onclick="rollback()">回滚</button><button onclick="togglePreview()">预览配置</button></div>
+        <div id="applyMsg"></div><pre id="preview" style="display:none;margin-top:12px"></pre>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ 节点管理 ══════ -->
+<div id="tab-nodes" class="tab-content">
+  <div class="card"><div class="card-title">节点列表</div><div class="card-body">
+    <div class="toolbar">
+      <button class="p" onclick="syncAllSources()">同步全部源</button>
+      <button onclick="testAllNodes()">全部测速</button>
+      <div class="search-box"><input id="nodeSearch" placeholder="搜索节点..." oninput="renderNodes()"/></div>
+      <select id="nodeFilterType" onchange="renderNodes()"><option value="">全部协议</option><option>shadowsocks</option><option>vmess</option><option>vless</option><option>trojan</option><option>hysteria2</option><option>tuic</option><option>socks</option><option>http</option></select>
+      <select id="nodeFilterSrc" onchange="renderNodes()"><option value="">全部来源</option></select>
+      <span id="nodeCnt" class="page-info"></span>
+    </div>
+    <div style="max-height:520px;overflow-y:auto;border-radius:10px;border:1px solid #1a2332">
+    <table><thead><tr><th>名称</th><th>协议</th><th>地址</th><th>端口</th><th>延迟</th><th>速度</th><th>出口 IP</th><th>来源</th><th>状态</th><th>操作</th></tr></thead><tbody id="nodeTable"></tbody></table>
+    </div>
+    <div id="nodeEmpty" class="empty" style="display:none">暂无节点</div>
+  </div></div>
+  <div class="cols">
+    <div class="card"><div class="card-title" onclick="this.parentElement.classList.toggle('collapsed')">导入链接</div><div class="card-body">
+      <div style="margin-bottom:8px;font-size:13px;color:#334155">支持 ss:// vmess:// vless:// trojan:// hy2:// tuic://</div>
+      <textarea id="linkText" class="full" rows="5" placeholder="每行粘贴一个节点链接..." style="min-height:120px"></textarea>
+      <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button onclick="previewLinks()">解析预览</button><button class="p" onclick="importLinks()">直接导入</button><span id="linkCount" style="font-size:13px;color:#334155"></span></div>
+      <div id="linkPreviewArea"></div><div id="linkMsg"></div>
+    </div></div>
+    <div class="card"><div class="card-title" onclick="this.parentElement.classList.toggle('collapsed')">手动添加</div><div class="card-body">
+      <div class="form-group"><span class="form-label">基本信息</span>
+        <div class="form-row"><label>协议</label><select id="manualType" onchange="updateManualForm()" style="width:200px"><option value="shadowsocks">Shadowsocks</option><option value="vmess">VMess</option><option value="vless">VLESS</option><option value="trojan">Trojan</option><option value="hysteria2">Hysteria2</option><option value="tuic">TUIC</option><option value="socks">SOCKS5</option><option value="http">HTTP Proxy</option></select></div>
+        <div class="form-row"><label>标签</label><input id="manualTag" placeholder="留空自动生成" style="width:200px"/><label>服务器</label><input id="manualHost" placeholder="1.2.3.4" style="width:200px"/><label>端口</label><input id="manualPort" type="number" value="443" style="width:90px"/></div>
+      </div>
+      <div id="manualExtra"></div>
+      <div style="display:flex;gap:10px;margin-top:12px"><button class="p" onclick="addManualNode()" id="addNodeBtn">添加节点</button><button onclick="resetManualForm()">重置</button></div>
+      <div id="manualMsg"></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════ 设备分流 ══════ -->
+<div id="tab-flow" class="tab-content">
+  <div class="card"><div class="card-title">设备 - 节点映射</div><div class="card-body">
+    <div class="toolbar">
+      <div class="search-box"><input id="devSearch" placeholder="搜索设备/MAC/备注..." oninput="renderDevices()" style="width:320px"/></div>
+      <select id="devFilter" onchange="renderDevices()"><option value="">全部</option><option value="managed">已纳管</option><option value="unmanaged">未纳管</option></select>
+      <span class="page-info" id="devCnt"></span>
+      <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+        <select id="batchNodeSel" style="width:260px"></select>
+        <button onclick="batchApply()" style="height:44px">批量生效</button>
+      </div>
+    </div>
+    <div style="max-height:600px;overflow-y:auto;border-radius:10px;border:1px solid #1a2332">
+    <table><thead><tr>
+      <th style="width:40px"><input type="checkbox" id="selAll" onchange="toggleAll(this)" style="width:18px;height:18px;cursor:pointer"></th>
+      <th>设备名</th><th>MAC</th><th>备注</th><th>绑定节点</th><th>纳管</th><th>操作</th>
+    </tr></thead><tbody id="devTable"></tbody></table>
+    </div>
+    <div id="devEmpty" class="empty" style="display:none">暂无设备</div>
+  </div></div>
+</div>
+
+<!-- ══════ 访问控制 ══════ -->
+<div id="tab-access" class="tab-content">
+  <div class="cols">
+    <div class="card"><div class="card-title">DHCP 在线设备</div><div class="card-body">
+      <div style="margin-bottom:16px"><button class="p" onclick="refreshDhcp()" style="height:48px;font-size:15px;padding:0 28px">扫描在线设备</button></div>
+      <div style="max-height:500px;overflow-y:auto;border-radius:10px;border:1px solid #1a2332">
+      <table><thead><tr><th>主机名</th><th>MAC</th><th>IP</th><th>状态</th><th>节点</th><th>操作</th></tr></thead><tbody id="dhcpTable"></tbody></table>
+      </div>
+    </div></div>
+    <div class="card"><div class="card-title">手动添加设备</div><div class="card-body">
+      <div style="margin-bottom:14px"><label style="display:block;font-size:13px;color:#475569;font-weight:600;margin-bottom:6px">设备名</label><input id="addName" placeholder="我的手机" style="width:100%"/></div>
+      <div style="margin-bottom:6px"><label style="display:block;font-size:13px;color:#475569;font-weight:600;margin-bottom:6px">MAC 地址</label><input id="addMac" placeholder="AA:BB:CC:DD:EE:FF" style="width:100%"/></div>
+      <div style="font-size:12px;color:#334155;margin-bottom:14px">格式: AA:BB:CC:DD:EE:FF</div>
+      <button class="p" onclick="addDevManual()" style="height:48px;width:100%;font-size:15px">添加到分流</button>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════ 运行日志 ══════ -->
+<div id="tab-logs" class="tab-content">
+  <div class="card"><div class="card-title">审计日志</div><div class="card-body">
+    <div class="toolbar">
+      <select id="logLevel" onchange="refreshLogs()" style="width:140px"><option value="">全部级别</option><option value="info">INFO</option><option value="warn">WARN</option><option value="error">ERROR</option></select>
+      <select id="logComp" onchange="refreshLogs()" style="width:140px"><option value="">全部组件</option><option value="system">system</option><option value="probe">probe</option><option value="egress">egress</option><option value="alert">alert</option></select>
+      <button onclick="refreshLogs()">刷新</button>
+      <button class="d" onclick="clearLogs()">清空日志</button>
+    </div>
+    <pre id="logPre" style="min-height:400px">加载中...</pre>
+  </div></div>
+</div>
+
+</div>
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:none;align-items:center;justify-content:center">
+<div style="background:#0c1219;border:1px solid #1a2332;border-radius:16px;padding:32px;width:600px;max-width:90vw;max-height:90vh;overflow-y:auto">
+<div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:24px">编辑节点</div>
+<div class="form-group"><span class="form-label">基本信息</span>
+<div class="form-row"><label>标签</label><input id="editTag" style="flex:1"/></div>
+<div class="form-row"><label>协议</label><input id="editType" style="width:160px" readonly/><label>服务器</label><input id="editServer" style="flex:1"/></div>
+<div class="form-row"><label>端口</label><input id="editPort" type="number" style="width:120px"/></div>
+</div>
+<div class="form-group"><span class="form-label">认证</span>
+<div class="form-row"><label>UUID</label><input id="editUuid" style="flex:1" placeholder="无则留空"/></div>
+<div class="form-row"><label>密码</label><input id="editPwd" style="flex:1" placeholder="无则留空"/></div>
+<div class="form-row"><label>加密</label><input id="editMethod" style="width:200px" placeholder="如 aes-256-gcm"/><label>Flow</label><input id="editFlow" style="width:200px" placeholder="如 xtls-rprx-vision"/></div>
+</div>
+<div style="display:flex;gap:12px;margin-top:20px">
+<button class="p" onclick="saveEditNode()" style="flex:1;height:48px;font-size:15px">保存修改</button>
+<button onclick="closeEditModal()" style="flex:1;height:48px">取消</button>
+</div>
+</div>
+</div>
+
+<script>
+const A='';
+async function jget(u){const r=await fetch(A+u);if(!r.ok)throw new Error(await r.text());return r.json()}
+async function jpost(u,b){const o={method:'POST',headers:{'content-type':'application/json'}};if(b!==undefined)o.body=JSON.stringify(b);const r=await fetch(A+u,o);if(!r.ok)throw new Error(await r.text());return r.json()}
+async function jput(u,b){const r=await fetch(A+u,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json()}
+async function jdel(u){const r=await fetch(A+u,{method:'DELETE'});if(!r.ok)throw new Error(await r.text());return r.json()}
+let N=[],D=[];
+function showTab(t){document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.tabs button').forEach(e=>e.classList.remove('active'));document.getElementById('tab-'+t).classList.add('active');const m={basic:0,nodes:1,flow:2,access:3,logs:4};document.querySelectorAll('.tabs button')[m[t]].classList.add('active');if(t==='nodes'){loadNodes();loadSrcFilter()}if(t==='flow')loadDevices();if(t==='access')refreshDhcp();if(t==='logs')refreshLogs();}
+function msg(id,txt,type){const e=document.getElementById(id);if(!e)return;e.className='msg '+(type||'info');e.textContent=txt;setTimeout(()=>e.className='msg',4000)}
+function ft(ts){return ts?new Date(ts*1000).toLocaleString('zh-CN'):'-'}
+function HC(l,v,c,s,vs){return `<div class="hero-card"><div class="hc-label">${l}</div><div class="hc-value ${c}" ${vs?'style="'+vs+'"':''}>${v}</div>${s?`<div class="hc-sub">${s}</div>`:''}</div>`}
+function $v(id){return(document.getElementById(id)?.value||'').trim()}
+function openLuci(){const h=location.hostname;const p=location.port;let url;if(p==='18080')url=`http://${h}:9080/`;else url=`http://${h}/`;window.open(url,'_blank')}
+function esc(s){return(s||'').replace(/'/g,"\\'")}
+function cssId(mac){return(mac||'').replace(/[^a-zA-Z0-9]/g,'_')}
+
+// ── Dashboard ──
+async function loadStatus(){
+  const s=await jget('/api/status');
+  const h=s.overall_health||'unknown';
+  const hc=h==='ok'?'green':h==='critical'?'red':h==='warn'?'yellow':'';
+  const ac=s.critical_alert_count>0?'red':s.active_alert_count>0?'yellow':'green';
+  document.getElementById('statusGrid').innerHTML=[
+    HC('服务状态',s.enabled?'运行中':'已停止',s.enabled?'green':'red',s.enabled?'系统防护中':'防护未启动'),
+    HC('系统健康',h.toUpperCase(),hc,'探测: '+ft(s.last_probe_at)),
+    HC('告警',s.active_alert_count||'0',ac,s.critical_alert_count?s.critical_alert_count+' 个严重':'无告警'),
+    HC('纳管设备',s.managed_count+' / '+s.device_count,s.managed_count>0?'cyan':'','未纳管: '+(s.device_count-s.managed_count)),
+    HC('节点',s.node_enabled+' / '+s.node_count,'blue',s.source_count+' 个源 / '+s.sub_count+' 个订阅'),
+    HC('策略',s.default_policy==='whitelist'?'白名单':s.default_policy==='block'?'阻断':'直连','',s.failure_policy),
+    HC('版本',s.policy_version||'未应用','',s.rollback_version?'回滚: '+s.rollback_version:'无回滚点'),
+    HC('应用时间',ft(s.last_apply).replace(/^\d{4}\//,''),'','','font-size:16px'),
+    HC('实时下载',_tDown,'cyan',_tConn+'个连接','font-size:20px'),
+    HC('实时上传',_tUp,'blue','','font-size:20px'),
+  ].join('');
+  document.getElementById('mainSw').checked=s.enabled;
+  document.getElementById('swLabel').textContent=s.enabled?'已启用':'已停用';
+  const dot=document.getElementById('swDot');if(dot)dot.className='status-dot '+(s.enabled?'on':'off');
+  document.getElementById('curVer').textContent=s.policy_version||'-';
+  document.getElementById('rbVer').textContent=s.rollback_version||'-';
+}
+
+let _tUp='0 B/s',_tDown='0 B/s',_tConn='0';
+async function loadTraffic(){
+  try{
+    const t=await jget('/api/traffic/realtime');
+    _tUp=t.up_str||'0 B/s';_tDown=t.down_str||'0 B/s';
+  }catch(e){}
+  try{
+    const c=await jget('/api/traffic/connections');
+    _tConn=c.count||'0';
+    _tTotal=`总上传: ${c.upload_total_str||'0 B'} | 总下载: ${c.download_total_str||'0 B'} | 连接: ${c.count||0}`;
+  }catch(e){}
+}
+let _tTotal='';
+async function loadSysInfo(){
+  try{
+    const s=await jget('/api/system/info');
+    let html=`
+      <span>运行时间: <b>${s.uptime_str}</b></span>
+      <span>内存: <b>${s.memory_mb} MB</b></span>
+      <span>进程: <b>${s.pid}</b></span>
+      <span>探测周期: <b>${s.probe_cycle}</b></span>
+    `;
+    if(_tTotal)html+=`<span>${_tTotal}</span>`;
+    document.getElementById('sysBar').innerHTML=html;
+  }catch(e){document.getElementById('sysBar').innerHTML='<span>系统信息不可用</span>'}
+}
+
+async function loadHealth(){
+  try{
+    const h=await jget('/api/health');
+    const names={singbox:'sing-box',tun:'TUN',nftables:'nftables',dns_guard:'DNS Guard',leak_guard:'Leak Guard',ipv6_guard:'IPv6 Guard'};
+    let items=[];
+    for(const [k,label] of Object.entries(names)){
+      const c=h.checks?.[k];if(!c)continue;
+      const st=c.status;
+      const tip=`${c.message||''} | ${c.latency_ms||0}ms`;
+      items.push(`<div class="health-item" title="${tip}"><div class="health-dot ${st}"></div><span class="health-name">${label}</span><span class="health-status ${st}">${c.status_legacy||st}</span></div>`);
+    }
+    document.getElementById('healthGrid').innerHTML=items.join('');
+
+    const shieldChecks=[
+      {key:'dns_guard',name:'DNS 重定向',desc:'强制 DNS 走代理'},
+      {key:'leak_guard',name:'DoH/DoQ 阻断',desc:'封锁加密 DNS 绕行'},
+      {key:'ipv6_guard',name:'IPv6 泄露防护',desc:'阻断 IPv6 直连泄露'},
+    ];
+    const extraShields=[
+      {name:'STUN 阻断',desc:'阻断 WebRTC 真实 IP 泄露',status:h.checks?.leak_guard?.details?.stun_3478_block?'on':'warn'},
+      {name:'DoT 阻断',desc:'阻断 DNS over TLS (853)',status:h.checks?.leak_guard?.details?.dot_853_block?'on':'warn'},
+      {name:'DNS 劫持',desc:'所有 DNS 查询重定向',status:h.checks?.dns_guard?.details?.udp53_redirect&&h.checks?.dns_guard?.details?.tcp53_redirect?'on':'off'},
+    ];
+    let sg='';
+    shieldChecks.forEach(sc=>{
+      const c=h.checks?.[sc.key];
+      const st=c?.status==='ok'?'on':c?.status==='warn'?'warn':'off';
+      sg+=`<div class="shield-item"><div class="si-dot ${st}"></div><div><div class="si-name">${sc.name}</div><div style="font-size:11px;color:#334155">${sc.desc}</div></div><span class="si-status ${st}">${st==='on'?'已激活':st==='warn'?'部分生效':'未激活'}</span></div>`;
+    });
+    extraShields.forEach(es=>{
+      sg+=`<div class="shield-item"><div class="si-dot ${es.status}"></div><div><div class="si-name">${es.name}</div><div style="font-size:11px;color:#334155">${es.desc}</div></div><span class="si-status ${es.status}">${es.status==='on'?'已激活':es.status==='warn'?'部分生效':'未激活'}</span></div>`;
+    });
+    document.getElementById('shieldGrid').innerHTML=sg;
+
+    const allOk=Object.values(h.checks||{}).every(c=>c.status==='ok');
+    const icon=document.getElementById('shieldIcon');
+    icon.className='shield-icon '+(allOk?'active':'inactive');
+    document.getElementById('shieldTitle').textContent=allOk?'DNS 防泄露保护 - 全部激活':'DNS 防泄露保护 - 需要注意';
+
+    const alerts=h.active_alerts||[];
+    const ae=document.getElementById('alertList');
+    const badge=document.getElementById('alertCntBadge');
+    if(badge)badge.textContent=alerts.length?alerts.length+' 个活动告警':'';
+    if(ae){
+      if(!alerts.length){ae.innerHTML='<div class="empty" style="padding:24px">系统正常运行，无告警</div>'}
+      else{ae.innerHTML=alerts.map(a=>{
+        const sc2=a.severity==='critical'?'red':'yellow';
+        return `<div class="alert-row"><span class="badge ${sc2}" style="font-size:13px">${a.severity==='critical'?'严重':a.severity==='warning'?'警告':'提示'}</span><span style="flex:1;font-size:15px">${a.title.replace('check failed','检查失败').replace('singbox','sing-box').replace('tun','TUN接口').replace('nftables','规则引擎').replace('dns_guard','DNS防护').replace('leak_guard','泄露防护').replace('ipv6_guard','IPv6防护')}: ${a.message}</span><span style="font-size:12px;color:#334155">${ft(a.first_seen)}</span><button class="s" onclick="ackAlert('${a.id}')" style="height:36px">确认</button></div>`}).join('')}
+    }
+  }catch(e){console.error(e)}
+}
+async function ackAlert(id){try{await jpost('/api/alerts/'+encodeURIComponent(id)+'/ack');loadHealth();loadStatus()}catch(e){alert(e)}}
+async function testRouterEgress(){
+  document.getElementById('egressStatus').textContent='检测中...';document.getElementById('egressResult').innerHTML='';
+  try{
+    const r=await jget('/api/egress/router');const cc=r.consistent?'green':'red';
+    let html=`<div style="margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span class="badge ${cc}" style="font-size:14px;padding:6px 16px">${r.consistent?'一致':'不一致'}</span><span style="font-size:28px;font-weight:800;color:#f1f5f9;letter-spacing:-1px">${r.detected_ip||'未知'}</span>${r.country?`<span class="badge cyan" style="font-size:14px;padding:6px 14px">${r.country}${r.city?' · '+r.city:''}</span>`:''}<span style="font-size:12px;color:#475569;background:#1a2332;padding:4px 12px;border-radius:6px">${r.note||''}</span></div>`;
+    html+=`<table><thead><tr><th>检测服务</th><th>返回 IP</th><th>状态</th></tr></thead><tbody>`;
+    r.results.forEach(s=>{const st=s.ok?'<span class="badge green">OK</span>':`<span class="badge red">${s.error||'FAIL'}</span>`;html+=`<tr><td style="font-size:13px;color:#475569">${s.service}</td><td style="font-weight:700;font-family:monospace">${s.ip||'-'}</td><td>${st}</td></tr>`});
+    html+='</tbody></table>';
+    document.getElementById('egressResult').innerHTML=html;
+    document.getElementById('egressStatus').textContent='完成 '+new Date().toLocaleTimeString('zh-CN');
+  }catch(e){document.getElementById('egressStatus').textContent='检测失败: '+e}
+}
+async function loadSettings(){try{const s=await jget('/api/settings');document.getElementById('defPolicy').value=s.default_policy||'whitelist';document.getElementById('failPolicy').value=s.failure_policy||'fail-close';if(s.dns){document.getElementById('dnsPort').value=s.dns.enforce_redirect_port||6053;document.getElementById('dnsBlock').checked=s.dns.block_doh_doq!==false;document.getElementById('dnsForce').checked=s.dns.force_redirect!==false;if(s.dns.servers){document.querySelectorAll('.dns-cb').forEach(cb=>{cb.checked=s.dns.servers.includes(cb.value);const card=cb.closest('label');if(card)card.style.borderColor=cb.checked?'#16a34a55':'#1a2332'})}}}catch(e){}}
+async function toggleSvc(on){try{await jpost('/api/service/toggle',{enabled:on});loadStatus()}catch(e){msg('setMsg',e,'err')}}
+async function saveSettings(){try{await jput('/api/settings',{default_policy:$v('defPolicy')||document.getElementById('defPolicy').value,failure_policy:document.getElementById('failPolicy').value,dns:{enforce_redirect_port:+document.getElementById('dnsPort').value||6053,block_doh_doq:document.getElementById('dnsBlock').checked,servers:[...document.querySelectorAll('.dns-cb:checked')].map(cb=>cb.value),force_redirect:document.getElementById('dnsForce').checked}});msg('setMsg','已保存','ok');loadStatus()}catch(e){msg('setMsg',e,'err')}}
+async function applyAll(){try{const r=await jpost('/api/apply');msg('applyMsg',`已应用 ${r.policy_version}, ${r.affected} 台设备受影响`,'ok');loadStatus()}catch(e){msg('applyMsg',e,'err')}}
+async function rollback(){try{const r=await jpost('/api/rollback');msg('applyMsg','已回滚到: '+r.restored,'ok');loadStatus()}catch(e){msg('applyMsg',e,'err')}}
+async function togglePreview(){const el=document.getElementById('preview');if(el.style.display==='none'){const r=await jget('/api/singbox/preview');el.textContent=JSON.stringify(r,null,2);el.style.display='block'}else el.style.display='none'}
+
+// ── Sources & Subs ──
+async function loadSources(){const s=await jget('/api/sources');document.getElementById('srcTable').innerHTML=s.map(s=>`<tr><td style="font-weight:700">${s.name}</td><td style="font-size:13px;color:#475569;font-family:monospace">${s.base_url}</td><td style="font-weight:700">${s.node_count}</td><td>${s.enabled?'<span class="badge green">启用</span>':'<span class="badge gray">禁用</span>'}</td><td style="white-space:nowrap"><button class="s p" onclick="syncSource('${s.id}')">同步</button> <button class="s d" onclick="delSource('${s.id}')">删除</button></td></tr>`).join('')}
+async function addSource(){try{await jpost('/api/sources',{name:$v('srcName'),base_url:$v('srcUrl'),username:$v('srcUser'),password:$v('srcPass')});['srcName','srcUrl','srcUser','srcPass'].forEach(i=>document.getElementById(i).value='');loadSources();msg('srcMsg','已添加','ok')}catch(e){msg('srcMsg',e,'err')}}
+async function syncSource(id){try{const r=await jpost('/api/sources/'+id+'/sync');msg('srcMsg',r.count+' 个节点已同步','ok');loadSources();loadStatus()}catch(e){msg('srcMsg',e,'err')}}
+async function syncAllSources(){try{const r=await jpost('/api/nodes/sync-all');msg('srcMsg',r.total+' 个节点'+(r.errors.length?', '+r.errors.length+' 个错误':''),'ok');loadSources();loadStatus();loadNodes()}catch(e){msg('srcMsg',e,'err')}}
+async function delSource(id){if(!confirm('删除此源及其节点？'))return;try{await jdel('/api/sources/'+id);loadSources();loadStatus()}catch(e){}}
+async function loadSubs(){const s=await jget('/api/subscriptions');document.getElementById('subTable').innerHTML=s.map(s=>`<tr><td style="font-weight:700">${s.name}</td><td style="font-weight:700">${s.node_count}</td><td><button class="s p" onclick="syncSub('${s.id}')">同步</button> <button class="s d" onclick="delSub('${s.id}')">删除</button></td></tr>`).join('')}
+async function addSub(){try{await jpost('/api/subscriptions',{name:$v('subName'),url:$v('subUrl')});document.getElementById('subName').value='';document.getElementById('subUrl').value='';loadSubs()}catch(e){alert(e)}}
+async function syncSub(id){try{const r=await jpost('/api/subscriptions/'+id+'/sync');msg('srcMsg',r.count+' 个节点已同步','ok');loadSubs();loadStatus();loadNodes()}catch(e){msg('srcMsg',e,'err')}}
+async function delSub(id){if(!confirm('删除？'))return;try{await jdel('/api/subscriptions/'+id);loadSubs();loadStatus()}catch(e){}}
+
+// ── Nodes ──
+let _nodeEgress={};
+async function loadNodes(){N=await jget('/api/nodes');renderNodes()}
+function loadSrcFilter(){const ts=new Set(N.map(n=>n.source_type).filter(Boolean));document.getElementById('nodeFilterSrc').innerHTML='<option value="">全部来源</option>'+[...ts].map(t=>`<option>${t}</option>`).join('')}
+function renderNodes(){
+  const q=($v('nodeSearch')||'').toLowerCase(),ft2=document.getElementById('nodeFilterType')?.value||'',fs=document.getElementById('nodeFilterSrc')?.value||'';
+  let list=N;
+  if(q)list=list.filter(n=>(n.tag||'').toLowerCase().includes(q)||(n.server||'').toLowerCase().includes(q)||(n.type||'').includes(q));
+  if(ft2)list=list.filter(n=>n.type===ft2);if(fs)list=list.filter(n=>n.source_type===fs);
+  document.getElementById('nodeCnt').textContent=list.length+' / '+N.length;
+  const tb=document.getElementById('nodeTable'),em=document.getElementById('nodeEmpty');
+  if(!list.length){tb.innerHTML='';em.style.display='block';return}em.style.display='none';
+  tb.innerHTML=list.map(n=>{
+    const lat=n.latency===null?'<span style="color:#334155">-</span>':n.latency<0?'<span class="badge red">超时</span>':`<span class="badge green">${n.latency}ms</span>`;
+    const st=n.enabled?'<span class="badge green">启用</span>':'<span class="badge gray">禁用</span>';
+    const src={'3xui':'blue','manual':'purple','link':'yellow','subscription':'cyan'}[n.source_type]||'gray';
+    const eip=_nodeEgress[n.tag];
+    const eipCell=eip?`<span style="font-family:monospace;font-size:13px;color:#94a3b8">${eip}</span>`:'<span style="color:#334155">-</span>';
+    return `<tr><td title="${n.tag}" style="font-weight:700;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.tag}</td><td><span class="badge blue">${n.type}</span></td><td style="font-size:13px;color:#475569;font-family:monospace">${n.server||''}</td><td>${n.server_port||''}</td><td>${lat}</td><td>${n.speed_mbps?`<span class="badge cyan">${n.speed_mbps} Mbps</span>`:'<span style="color:#334155">-</span>'}</td><td>${eipCell}</td><td><span class="badge ${src}">${n.source_type||'?'}</span></td><td>${st}</td><td style="white-space:nowrap"><div style="display:flex;gap:6px"><button class="s" onclick="editNode('${esc(n.tag)}')">编辑</button><button class="s" onclick="testN('${esc(n.tag)}')">延迟</button><button class="s" onclick="speedTestN('${esc(n.tag)}',this)">速度</button><button class="s" onclick="testNodeEgress('${esc(n.tag)}',this)">出口IP</button><button class="s" onclick="togN('${esc(n.tag)}')">${n.enabled?'禁用':'启用'}</button><button class="s d" onclick="delN('${esc(n.tag)}')">删除</button></div></td></tr>`
+  }).join('');
+}
+async function testN(t){try{await jpost('/api/nodes/'+encodeURIComponent(t)+'/test');loadNodes()}catch(e){}}
+async function speedTestN(t,btn){const o=btn.textContent;btn.textContent='测试中...';btn.disabled=true;try{const r=await jpost('/api/nodes/'+encodeURIComponent(t)+'/speedtest');if(r.speed_mbps>0){btn.textContent=r.speed_mbps+' Mbps'}else if(r.latency_ms>0){btn.textContent='延迟'+r.latency_ms+'ms'}else{btn.textContent='超时'}loadNodes();setTimeout(()=>{btn.textContent=o;btn.disabled=false},4000)}catch(e){btn.textContent='失败';setTimeout(()=>{btn.textContent=o;btn.disabled=false},2000)}}
+async function testNodeEgress(t,btn){const o=btn.textContent;btn.textContent='...';btn.disabled=true;try{const r=await jget('/api/egress/node/'+encodeURIComponent(t));const label=(r.detected_ip||'?')+(r.country?' ('+r.country+')':'')+(r.proxied?'':'*');_nodeEgress[t]=label;btn.textContent=r.detected_ip||'?';btn.title=(r.note||'')+'\nIP: '+(r.detected_ip||'?')+'\nISP: '+(r.isp||'-');renderNodes();setTimeout(()=>{btn.textContent=o;btn.disabled=false},3000)}catch(e){btn.textContent='错误';btn.disabled=false}}
+async function testDevEgress(mac,btn){const o=btn.textContent;btn.textContent='检测中...';btn.disabled=true;try{const r=await jget('/api/egress/device/'+encodeURIComponent(mac));btn.textContent=(r.detected_ip||'?')+(r.country?' '+r.country:'');btn.title=(r.note||'')+'\nIP: '+(r.detected_ip||'?')+'\n节点: '+(r.node_tag||'直连')+'\nISP: '+(r.isp||'-');setTimeout(()=>{btn.textContent=o;btn.disabled=false},5000)}catch(e){btn.textContent='失败';setTimeout(()=>{btn.textContent=o;btn.disabled=false},2000)}}
+async function togN(t){try{await jput('/api/nodes/'+encodeURIComponent(t)+'/toggle',{});loadNodes()}catch(e){}}
+async function delN(t){if(!confirm('删除节点 "'+t+'"?'))return;try{await jdel('/api/nodes/'+encodeURIComponent(t));loadNodes();loadStatus()}catch(e){alert(e)}}
+let _editTag='';
+function editNode(tag){
+  const n=N.find(x=>x.tag===tag);if(!n)return;
+  _editTag=tag;
+  document.getElementById('editTag').value=n.tag||'';
+  document.getElementById('editType').value=n.type||'';
+  document.getElementById('editServer').value=n.server||'';
+  document.getElementById('editPort').value=n.server_port||443;
+  document.getElementById('editUuid').value=n.uuid||'';
+  document.getElementById('editPwd').value=n.password||'';
+  document.getElementById('editMethod').value=n.method||n.security||'';
+  document.getElementById('editFlow').value=n.flow||'';
+  const m=document.getElementById('editModal');
+  m.style.display='flex';
+}
+function closeEditModal(){document.getElementById('editModal').style.display='none'}
+async function saveEditNode(){
+  const body={type:$v('editType'),tag:$v('editTag'),server:$v('editServer'),server_port:+$v('editPort')||443};
+  const u=$v('editUuid');if(u)body.uuid=u;
+  const p=$v('editPwd');if(p)body.password=p;
+  const mt=$v('editMethod');if(mt){if(body.type==='vmess')body.security=mt;else body.method=mt}
+  const fl=$v('editFlow');if(fl)body.flow=fl;
+  try{await jput('/api/nodes/'+encodeURIComponent(_editTag),body);closeEditModal();loadNodes();loadStatus();msg('manualMsg','节点已更新','ok')}catch(e){alert('保存失败: '+(e.message||e))}
+}
+async function testAllNodes(){const btn=event?.target;if(btn){btn.disabled=true;btn.textContent='0/'+N.length}let d=0;for(const n of N){try{await jpost('/api/nodes/'+encodeURIComponent(n.tag)+'/test')}catch(e){}d++;if(btn)btn.textContent=d+'/'+N.length}if(btn){btn.disabled=false;btn.textContent='全部测速'}loadNodes()}
+let _lp=[];
+async function previewLinks(){const t=$v('linkText');if(!t){msg('linkMsg','请粘贴链接','err');return}try{const r=await jpost('/api/nodes/import-link/preview',{links:t});_lp=r.nodes||[];document.getElementById('linkCount').textContent=_lp.length+' 个节点';if(!_lp.length){msg('linkMsg','未解析到有效节点','err');return}let h='<div class="preview-table"><table><thead><tr><th>标签</th><th>协议</th><th>服务器</th><th>端口</th></tr></thead><tbody>';_lp.forEach(n=>{h+=`<tr><td style="font-weight:600">${(n.tag||'').substring(0,28)}</td><td><span class="badge blue">${n.type}</span></td><td style="font-size:13px;color:#475569">${n.server||''}</td><td>${n.server_port||''}</td></tr>`});h+='</tbody></table></div><div style="margin-top:10px"><button class="p" onclick="importLinks()">确认导入 '+_lp.length+'</button> <button onclick="clearPreview()">取消</button></div>';document.getElementById('linkPreviewArea').innerHTML=h}catch(e){msg('linkMsg',e.message||e,'err')}}
+function clearPreview(){document.getElementById('linkPreviewArea').innerHTML='';_lp=[];document.getElementById('linkCount').textContent=''}
+async function importLinks(){try{const r=await jpost('/api/nodes/import-link',{links:document.getElementById('linkText').value});msg('linkMsg',r.added+' 个节点已导入','ok');document.getElementById('linkText').value='';clearPreview();loadNodes();loadStatus()}catch(e){msg('linkMsg',e,'err')}}
+const _SS=[{v:'aes-256-gcm',l:'AES-256-GCM'},{v:'aes-128-gcm',l:'AES-128-GCM'},{v:'chacha20-ietf-poly1305',l:'ChaCha20'},{v:'2022-blake3-aes-256-gcm',l:'BLAKE3-AES-256'},{v:'none',l:'None'}];
+const _VS=[{v:'auto',l:'Auto'},{v:'aes-128-gcm',l:'AES-128'},{v:'chacha20-poly1305',l:'ChaCha20'},{v:'none',l:'None'}];
+const _VF=[{v:'',l:'None'},{v:'xtls-rprx-vision',l:'xtls-rprx-vision'}];
+const _TR=[{v:'tcp',l:'TCP'},{v:'ws',l:'WebSocket'},{v:'grpc',l:'gRPC'},{v:'h2',l:'HTTP/2'},{v:'httpupgrade',l:'HTTPUpgrade'}];
+const _FP=[{v:'',l:'Default'},{v:'chrome',l:'Chrome'},{v:'firefox',l:'Firefox'},{v:'safari',l:'Safari'},{v:'random',l:'Random'}];
+const _AL=[{v:'',l:'Default'},{v:'h2,http/1.1',l:'h2,http/1.1'},{v:'h2',l:'h2'}];
+function _sel(id,o,w){return `<select id="${id}" style="width:${w||160}px">${o.map(x=>`<option value="${x.v}">${x.l}</option>`).join('')}</select>`}
+function updateManualForm(){const t=document.getElementById('manualType').value;let h='<div class="form-group"><span class="form-label">协议参数</span><div class="form-row">';if(t==='shadowsocks')h+=`<label>加密</label>${_sel('manualMethod',_SS,200)}<label>密码</label><input id="manualPwd" placeholder="Password" style="flex:1;min-width:200px"/>`;else if(t==='vmess')h+=`<label>UUID</label><input id="manualUuid" placeholder="UUID" style="flex:1;min-width:200px"/><label>加密</label>${_sel('manualSecurity',_VS,160)}`;else if(t==='vless')h+=`<label>UUID</label><input id="manualUuid" placeholder="UUID" style="flex:1;min-width:200px"/><label>Flow</label>${_sel('manualFlow',_VF,200)}`;else if(t==='trojan'||t==='hysteria2')h+=`<label>密码</label><input id="manualPwd" placeholder="Password" style="flex:1;min-width:240px"/>`;else if(t==='tuic')h+=`<label>UUID</label><input id="manualUuid" placeholder="UUID" style="flex:1;min-width:200px"/><label>密码</label><input id="manualPwd" placeholder="Password" style="width:200px"/>`;else if(t==='socks'||t==='http')h+=`<label>User</label><input id="manualUser" placeholder="Optional" style="width:160px"/><label>Pass</label><input id="manualPwd" placeholder="Optional" style="width:160px"/>`;h+='</div></div>';if(t==='vmess'||t==='vless'||t==='trojan'){h+=`<div class="form-group"><span class="form-label">传输层</span><div class="form-row"><label>传输</label>${_sel('manualTransport',_TR,160)}<span id="transportExtra"></span></div></div><div class="form-group"><span class="form-label">TLS</span><div class="form-row"><label>启用</label><label class="sw"><input type="checkbox" id="manualTls" onchange="updateTlsFields()"><span class="sl"></span></label><span id="tlsExtra"></span></div></div>`}document.getElementById('manualExtra').innerHTML=h;const ts=document.getElementById('manualTransport');if(ts)ts.addEventListener('change',updateTransportFields);updateTransportFields()}
+function updateTransportFields(){const t=document.getElementById('manualTransport')?.value,el=document.getElementById('transportExtra');if(!el)return;if(t==='ws')el.innerHTML='<label>Path</label><input id="manualTransPath" value="/" style="width:160px"/><label>Host</label><input id="manualTransHost" placeholder="Optional" style="width:160px"/>';else if(t==='grpc')el.innerHTML='<label>Service</label><input id="manualTransSvc" placeholder="svc" style="width:200px"/>';else if(t==='h2'||t==='httpupgrade')el.innerHTML='<label>Path</label><input id="manualTransPath" value="/" style="width:160px"/>';else el.innerHTML=''}
+function updateTlsFields(){const on=document.getElementById('manualTls')?.checked,el=document.getElementById('tlsExtra');if(!el)return;if(on)el.innerHTML=`<label>SNI</label><input id="manualSni" placeholder="domain" style="width:180px"/><label>FP</label>${_sel('manualFp',_FP,130)}<label>ALPN</label>${_sel('manualAlpn',_AL,140)}`;else el.innerHTML=''}
+function resetManualForm(){['manualTag','manualHost'].forEach(i=>{const e=document.getElementById(i);if(e)e.value=''});document.getElementById('manualPort').value='443';updateManualForm()}
+async function addManualNode(){const p=$v('manualType'),sv=$v('manualHost'),pt=+$v('manualPort')||443;if(!sv){msg('manualMsg','请填写服务器地址','err');return}const tg=$v('manualTag')||p+'-'+sv;const b={type:p,tag:tg,server:sv,server_port:pt};const g=id=>document.getElementById(id);if(g('manualPwd')?.value)b.password=g('manualPwd').value;if(g('manualUuid')?.value)b.uuid=g('manualUuid').value;if(g('manualMethod'))b.method=g('manualMethod').value;if(g('manualSecurity'))b.security=g('manualSecurity').value;if(g('manualFlow'))b.flow=g('manualFlow').value;if(g('manualUser')?.value)b.username=g('manualUser').value;if(g('manualTransport')){const t={type:g('manualTransport').value};if(g('manualTransPath'))t.path=g('manualTransPath').value;if(g('manualTransHost')?.value)t.headers={Host:g('manualTransHost').value};if(g('manualTransSvc')?.value)t.service_name=g('manualTransSvc').value;b.transport=t}if(g('manualTls')?.checked){const t={enabled:true};if(g('manualSni')?.value)t.server_name=g('manualSni').value;if(g('manualFp')?.value)t.utls={fingerprint:g('manualFp').value};if(g('manualAlpn')?.value)t.alpn=g('manualAlpn').value.split(',');b.tls=t}const btn=document.getElementById('addNodeBtn');btn.disabled=true;btn.textContent='...';try{await jpost('/api/nodes/manual',b);msg('manualMsg','已添加: '+tg,'ok');resetManualForm();loadNodes();loadStatus()}catch(e){msg('manualMsg',e.message||e,'err')}finally{btn.disabled=false;btn.textContent='添加节点'}}
+
+// ── Devices ──
+async function loadDevices(){D=await jget('/api/devices');if(!N.length)try{N=await jget('/api/nodes')}catch(e){};renderDevices();fillBatchSel()}
+function renderDevices(){
+  const q=($v('devSearch')||'').toLowerCase(),f=document.getElementById('devFilter')?.value||'';
+  let list=D;
+  if(q)list=list.filter(d=>(d.name||'').toLowerCase().includes(q)||(d.mac||'').toLowerCase().includes(q)||(d.node_tag||'').toLowerCase().includes(q)||(d.remark||'').toLowerCase().includes(q));
+  if(f==='managed')list=list.filter(d=>d.managed);if(f==='unmanaged')list=list.filter(d=>!d.managed);
+  document.getElementById('devCnt').textContent=list.length+' / '+D.length;
+  const tb=document.getElementById('devTable');
+  if(!list.length){tb.innerHTML='';document.getElementById('devEmpty').style.display='block';return}
+  document.getElementById('devEmpty').style.display='none';
+  tb.innerHTML=list.map(d=>{
+    const sel=nodeSelectHtml(d.mac,d.node_tag);
+    const mg=d.managed?'<span class="badge green">是</span>':'<span class="badge gray">否</span>';
+    return `<tr>
+      <td><input type="checkbox" class="dc" data-mac="${d.mac}" style="width:18px;height:18px;cursor:pointer"></td>
+      <td style="font-weight:700;font-size:15px">${d.name}</td>
+      <td style="font-family:monospace;font-size:13px;color:#475569">${d.mac}</td>
+      <td><input class="remark-input" value="${d.remark||''}" placeholder="备注..." onblur="saveRemark('${esc(d.mac)}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"/></td>
+      <td>${sel}</td><td>${mg}</td>
+      <td style="white-space:nowrap"><div style="display:flex;gap:6px"><button class="s apply-btn" id="ab-${cssId(d.mac)}" onclick="applyDev('${esc(d.mac)}')">应用</button><button class="s" onclick="testDevEgress('${esc(d.mac)}',this)">出口IP</button><button class="s d" onclick="delDev('${esc(d.mac)}')">删除</button></div></td>
+    </tr>`}).join('');
+}
+async function saveRemark(mac,val){try{await jput('/api/devices/'+encodeURIComponent(mac)+'/remark',{remark:val});const i=D.findIndex(d=>d.mac===mac);if(i>=0)D[i].remark=val}catch(e){}}
+function nodeSelectHtml(mac,cur){const en=N.filter(n=>n.enabled),gr={};en.forEach(n=>{const t=n.type||'other';if(!gr[t])gr[t]=[];gr[t].push(n)});let h=`<select id="ns-${cssId(mac)}" onchange="markPending('${esc(mac)}')" style="max-width:300px;height:40px;font-size:14px"><option value="direct"${cur==='direct'?' selected':''}>direct (直连)</option><option value=""${!cur||cur===''?' selected':''}>-- 未分配 --</option>`;for(const [t,ns] of Object.entries(gr)){h+=`<optgroup label="${t.toUpperCase()} (${ns.length})">`;ns.forEach(n=>{const l=n.latency!==null&&n.latency>=0?' '+n.latency+'ms':'';h+=`<option value="${n.tag}"${n.tag===cur?' selected':''}>${(n.tag||'').substring(0,40)}${l}</option>`});h+='</optgroup>'}return h+'</select>'}
+function markPending(mac){const b=document.getElementById('ab-'+cssId(mac));if(b)b.classList.add('pending')}
+async function applyDev(mac){const sel=document.getElementById('ns-'+cssId(mac));if(!sel)return;try{await jput('/api/devices/'+encodeURIComponent(mac)+'/node',{node_tag:sel.value||'direct'});const b=document.getElementById('ab-'+cssId(mac));if(b){b.classList.remove('pending');b.textContent='OK';setTimeout(()=>b.textContent='应用',1500)}const i=D.findIndex(d=>d.mac===mac);if(i>=0){D[i].node_tag=sel.value;D[i].managed=true}}catch(e){alert(e)}}
+async function delDev(mac){if(!confirm('移除设备 '+mac+'?'))return;try{await jdel('/api/devices/'+encodeURIComponent(mac));loadDevices();loadStatus()}catch(e){alert(e)}}
+function toggleAll(el){document.querySelectorAll('.dc').forEach(c=>c.checked=el.checked)}
+function fillBatchSel(){const s=document.getElementById('batchNodeSel'),en=N.filter(n=>n.enabled);s.innerHTML='<option value="direct">direct</option>'+en.map(n=>`<option value="${n.tag}">${(n.tag||'').substring(0,36)} (${n.type})</option>`).join('')}
+async function batchApply(){const tag=document.getElementById('batchNodeSel').value,macs=[...document.querySelectorAll('.dc:checked')].map(c=>c.dataset.mac);if(!macs.length)return alert('请先勾选设备');if(!confirm(macs.length+' 台设备绑定到 '+tag+'?'))return;const btn=event?.target;if(btn){btn.disabled=true;btn.textContent='0/'+macs.length}let d=0,f=0;for(const m of macs){try{await jput('/api/devices/'+encodeURIComponent(m)+'/node',{node_tag:tag})}catch(e){f++}d++;if(btn)btn.textContent=d+'/'+macs.length}if(btn){btn.disabled=false;btn.textContent='批量生效'}if(f)alert(f+' failed');loadDevices();loadStatus()}
+
+// ── DHCP ──
+async function refreshDhcp(){const ls=await jget('/api/dhcp/discover');document.getElementById('dhcpTable').innerHTML=ls.map(l=>{const st=l.managed?'<span class="badge green">纳管</span>':'<span class="badge yellow">未纳管</span>';const act=l.managed?'<span class="badge gray">已添加</span>':`<button class="s p" onclick="addFromDhcp('${esc(l.hostname||l.mac)}','${esc(l.mac)}')" style="height:36px;padding:0 16px">添加</button>`;return `<tr><td style="font-weight:700">${l.hostname||'-'}</td><td style="font-family:monospace;font-size:13px;color:#475569">${l.mac}</td><td style="font-family:monospace">${l.ip}</td><td>${st}</td><td>${l.node_tag||'<span style="color:#334155">-</span>'}</td><td>${act}</td></tr>`}).join('')}
+async function addFromDhcp(n,m){try{await jpost('/api/devices',{name:n,mac:m,node_tag:'direct',managed:true});refreshDhcp();loadStatus()}catch(e){alert(e)}}
+async function addDevManual(){const n=$v('addName'),m=$v('addMac');if(!n||!m)return alert('请填写设备名和MAC');try{await jpost('/api/devices',{name:n,mac:m,node_tag:'direct',managed:true});document.getElementById('addName').value='';document.getElementById('addMac').value='';refreshDhcp();loadStatus()}catch(e){alert(e)}}
+
+// ── Logs ──
+async function refreshLogs(){try{const lv=document.getElementById('logLevel')?.value||'',cp=document.getElementById('logComp')?.value||'';let u='/api/logs?lines=200';if(lv)u+='&level='+lv;if(cp)u+='&component='+cp;const l=await jget(u);if(!Array.isArray(l)||!l.length){document.getElementById('logPre').textContent='无日志';return}document.getElementById('logPre').innerHTML=l.map(e=>{if(typeof e==='string')return e;const c=e.level==='error'?'color:#f87171':e.level==='warn'?'color:#facc15':'color:#475569';return `<span style="${c}">[${e.ts}] [${e.level}] [${e.component}] ${e.event}: ${e.message}</span>`}).join('\n')}catch(e){document.getElementById('logPre').textContent='加载失败'}}
+async function clearLogs(){if(!confirm('清空所有日志？'))return;try{await jpost('/api/logs/clear');document.getElementById('logPre').textContent='日志已清空';refreshLogs()}catch(e){alert(e)}}
+
+// ── Init ──
+(async()=>{
+  await loadStatus();loadHealth();loadSettings();loadSources();loadSubs();loadSysInfo();loadTraffic();
+  try{N=await jget('/api/nodes')}catch(e){}
+  updateManualForm();
+  setInterval(loadSysInfo,10000);
+  setInterval(async()=>{await loadTraffic();loadStatus()},3000);
+})();
+</script>
+</body>
+</html>

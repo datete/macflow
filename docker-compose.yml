@@ -1,0 +1,14 @@
+services:
+  macflowd:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: macflowd
+    ports:
+      - "18080:18080"
+    volumes:
+      - ./:/app-host
+      - ./data:/app-host/data
+    working_dir: /app-host/backend
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "18080"]
+    restart: unless-stopped

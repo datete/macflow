@@ -1,0 +1,51 @@
+#!/usr/bin/expect -f
+set timeout 30
+
+spawn telnet 127.0.0.1 4445
+
+expect {
+    "Please press Enter" { send "\r" }
+    "root@" { }
+    timeout { send "\r" }
+}
+sleep 2
+send "\r"
+
+expect {
+    "#" { }
+    "root@" { }
+    timeout { send "\r"; exp_continue }
+}
+
+send "uname -a\r"
+expect "#"
+
+send "cat /etc/openwrt_release\r"
+expect "#"
+
+send "nft --version\r"
+expect "#"
+
+send "ip link show\r"
+expect "#"
+
+send "ifconfig br-lan 2>/dev/null || ip addr show\r"
+expect "#"
+
+send "/etc/init.d/dropbear status 2>/dev/null; /etc/init.d/dropbear start 2>/dev/null; /etc/init.d/dropbear enable 2>/dev/null; echo DROPBEAR_CONFIGURED\r"
+expect "DROPBEAR_CONFIGURED"
+
+send "passwd -d root\r"
+expect "#"
+
+send "uci set network.wan=interface; uci set network.wan.proto=dhcp; uci set network.wan.device=eth0; uci commit network; /etc/init.d/network restart\r"
+expect "#"
+
+sleep 5
+send "ip addr show eth0\r"
+expect "#"
+
+send "echo ALL_DONE\r"
+expect "ALL_DONE"
+
+puts "\n\n=== iStoreOS console init complete ==="

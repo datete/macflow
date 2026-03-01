@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+data/state.json
+data/audit.log
+*.tmp
+*.log
+vm/istoreos-work.qcow2
+vm/ovmf_vars.fd
+vm/*.json
+vm/*.img
+vm/*.img.gz
+vm/*.vhd
+vm/*.vhdx
+.cursor/

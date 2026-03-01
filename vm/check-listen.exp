@@ -1,0 +1,13 @@
+#!/usr/bin/expect -f
+set timeout 10
+
+spawn telnet 127.0.0.1 4445
+expect {
+    "#" { }
+    timeout { send "\r"; exp_continue }
+}
+
+send "cat /var/run/dropbear.*.pid 2>/dev/null; echo ---; cat /etc/config/dropbear; echo ---; netstat -tlnp 2>/dev/null; echo CHECK_DONE\r"
+expect "CHECK_DONE"
+
+puts "\n=== done ==="

@@ -1,0 +1,55 @@
+{
+  "version": "v1",
+  "failure_policy": "fail-close",
+  "default_mark": 0,
+  "dns": {
+    "enforce_redirect_port": 6053,
+    "block_doh_doq": true,
+    "doh_block_ipv4": [
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+  },
+  "groups": [
+    {
+      "name": "direct",
+      "mark": 0,
+      "route_table": 254,
+      "mode": "direct"
+    },
+    {
+      "name": "proxy_hk",
+      "mark": 256,
+      "route_table": 100,
+      "mode": "proxy",
+      "tun_gateway": "10.0.1.2"
+    },
+    {
+      "name": "proxy_us",
+      "mark": 512,
+      "route_table": 200,
+      "mode": "proxy",
+      "tun_gateway": "10.0.1.2"
+    }
+  ],
+  "devices": [
+    {
+      "name": "managed-laptop",
+      "mac": "02:AA:BB:CC:DD:01",
+      "group": "proxy_hk",
+      "managed": true
+    },
+    {
+      "name": "managed-phone",
+      "mac": "02:AA:BB:CC:DD:02",
+      "group": "proxy_us",
+      "managed": true
+    },
+    {
+      "name": "normal-tv",
+      "mac": "02:AA:BB:CC:DD:03",
+      "group": "direct",
+      "managed": false
+    }
+  ]
+}

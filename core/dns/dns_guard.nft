@@ -1,0 +1,22 @@
+table inet macflow_dns {
+  set doh_ipv4 {
+    type ipv4_addr
+    elements = { 1.1.1.1, 8.8.8.8 }
+  }
+
+  chain dns_capture {
+    type nat hook prerouting priority dstnat; policy accept;
+    # Only managed devices (mark != 0) are forced into controlled DNS.
+    meta mark != 0x0 udp dport 53 redirect to :6053
+    meta mark != 0x0 tcp dport 53 redirect to :6053
+  }
+
+  chain dns_egress_guard {
+    type filter hook forward priority filter; policy accept;
+    # Block known encrypted DNS egress for managed devices.
+    meta mark != 0x0 ip daddr @doh_ipv4 tcp dport 443 drop
+    meta mark != 0x0 ip daddr @doh_ipv4 udp dport 443 drop
+    meta mark != 0x0 udp dport 853 drop
+    meta mark != 0x0 tcp dport 853 drop
+  }
+}
