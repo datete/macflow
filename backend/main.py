@@ -445,18 +445,21 @@ def _update_alerts(checks: Dict, now: int) -> None:
     _health_state["alerts"] = list(existing.values())
 
 
-def _test_egress_ip() -> List[Dict]:
+def _test_egress_ip(use_proxy: bool = True) -> List[Dict]:
+    proxies = {"http": "socks5://127.0.0.1:1080", "https": "socks5://127.0.0.1:1080"} if use_proxy else None
     results = []
     for url, fmt in _EGRESS_SERVICES:
         try:
-            r = requests.get(url, timeout=8, headers={"User-Agent": "curl/8.0"})
+            r = requests.get(url, timeout=10, headers={"User-Agent": "curl/8.0"}, proxies=proxies)
             if fmt == "json":
                 ip = r.json().get("ip", "").strip()
             else:
                 ip = r.text.strip()
             valid = bool(ip and re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip))
-            results.append({"service": url, "ip": ip if valid else None, "ok": valid})
+            results.append({"service": url, "ip": ip if valid else None, "ok": valid, "via_proxy": use_proxy})
         except Exception as e:
+            if use_proxy:
+                return _test_egress_ip(use_proxy=False)
             results.append({"service": url, "ip": None, "ok": False, "error": str(e)})
     return results
 
@@ -711,16 +714,33 @@ def api_source_sync(sid: str):
         new_nodes = _sync_3xui(src["base_url"], src["username"], src["password"])
     except Exception as e:
         raise HTTPException(400, str(e))
+    panel_host = urllib.parse.urlparse(src["base_url"]).hostname or ""
+    existing_tags = {n["tag"] for n in s.get("nodes", []) if n.get("source") != sid}
+    added, updated, skipped = 0, 0, 0
+    deduped = []
+    seen_tags = set()
     for n in new_nodes:
         n["source"] = sid
         n["source_type"] = "3xui"
         n.setdefault("enabled", True)
         n.setdefault("latency", None)
-    s["nodes"] = [n for n in s.get("nodes", []) if n.get("source") != sid] + new_nodes
+        if n.get("server") in ("127.0.0.1", "0.0.0.0", "localhost", "::1", "") and panel_host:
+            n["server"] = panel_host
+        if n["tag"] in seen_tags:
+            skipped += 1
+            continue
+        seen_tags.add(n["tag"])
+        if n["tag"] in existing_tags:
+            skipped += 1
+            continue
+        deduped.append(n)
+        added += 1
+    old_count = sum(1 for n in s.get("nodes", []) if n.get("source") == sid)
+    s["nodes"] = [n for n in s.get("nodes", []) if n.get("source") != sid] + deduped
     s["last_sync"] = int(time.time())
     write_state(s)
-    audit("source_sync", f"{src['name']} count={len(new_nodes)}")
-    return {"ok": True, "count": len(new_nodes)}
+    audit("source_sync", f"{src['name']} total={len(new_nodes)} added={added} skipped={skipped}")
+    return {"ok": True, "count": len(deduped), "added": added, "skipped": skipped, "total_from_source": len(new_nodes)}
 
 @app.post("/api/nodes/sync-all")
 def api_sync_all():
@@ -1126,6 +1146,74 @@ def api_system_info():
         "probe_cycle": _health_state.get("probe_cycle", 0),
         "boot_time": int(_BOOT_TIME),
     }
+
+# ── Cloud Update (GitHub) ──
+
+_GITHUB_REPO = "datete/macflow"
+_GITHUB_RAW = f"https://raw.githubusercontent.com/{_GITHUB_REPO}/main"
+_UPDATE_FILES = ["backend/main.py", "web/index.html", "web/captive.html",
+                 "core/apply/atomic_apply.sh", "core/apply/device_patch.sh",
+                 "core/dns/dns_leak_probe.sh", "core/rule-engine/render_policy.py"]
+
+
+@app.get("/api/update/check")
+def api_update_check():
+    try:
+        r = requests.get(f"https://api.github.com/repos/{_GITHUB_REPO}/commits/main",
+                         timeout=10, headers={"Accept": "application/vnd.github.v3+json"})
+        if r.status_code != 200:
+            return {"available": False, "error": f"GitHub API {r.status_code}"}
+        data = r.json()
+        remote_sha = data.get("sha", "")[:8]
+        remote_msg = data.get("commit", {}).get("message", "")
+        remote_date = data.get("commit", {}).get("committer", {}).get("date", "")
+        local_sha = ""
+        try:
+            lr = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                                capture_output=True, timeout=5, text=True, cwd=str(ROOT))
+            local_sha = lr.stdout.strip()
+        except Exception:
+            pass
+        return {
+            "available": remote_sha != local_sha and bool(remote_sha),
+            "local_version": local_sha or "unknown",
+            "remote_version": remote_sha,
+            "remote_message": remote_msg,
+            "remote_date": remote_date,
+        }
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
+@app.post("/api/update/apply")
+def api_update_apply():
+    errors = []
+    updated = []
+    for fpath in _UPDATE_FILES:
+        try:
+            r = requests.get(f"{_GITHUB_RAW}/{fpath}", timeout=15)
+            if r.status_code == 200:
+                target = ROOT / fpath
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(r.content)
+                updated.append(fpath)
+            else:
+                errors.append(f"{fpath}: HTTP {r.status_code}")
+        except Exception as e:
+            errors.append(f"{fpath}: {e}")
+
+    need_restart = "backend/main.py" in updated
+    audit("cloud_update", f"updated={updated} errors={errors}", component="update")
+
+    if need_restart:
+        try:
+            subprocess.Popen(["sh", "-c", "sleep 2 && killall python3 && cd /opt/macflow && python3 backend/main.py > /var/log/macflow.log 2>&1 &"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+    return {"ok": True, "updated": updated, "errors": errors, "restart_scheduled": need_restart}
+
 
 # ── Traffic stats (sing-box Clash API) ──
 

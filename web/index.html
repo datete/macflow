@@ -267,6 +267,14 @@ pre{background:#080c12;border:1px solid #1a2332;border-radius:10px;padding:20px;
         <div style="display:flex;gap:12px;margin-top:8px"><button class="p" onclick="applyAll()" style="min-width:160px">全局应用</button><button onclick="rollback()">回滚</button><button onclick="togglePreview()">预览配置</button></div>
         <div id="applyMsg"></div><pre id="preview" style="display:none;margin-top:12px"></pre>
       </div></div>
+
+      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#06b6d422;color:#22d3ee">&#9729;</span>云更新</div><div class="card-body">
+        <div class="fr"><label>本地版本</label><span id="localVer" style="font-family:monospace;color:#64748b">-</span></div>
+        <div class="fr"><label>远程版本</label><span id="remoteVer" style="font-family:monospace;color:#64748b">-</span></div>
+        <div id="updateInfo" style="font-size:13px;color:#334155;margin-bottom:12px"></div>
+        <div style="display:flex;gap:12px"><button onclick="checkUpdate()">检查更新</button><button class="p" id="doUpdateBtn" onclick="doUpdate()" style="display:none">立即更新</button></div>
+        <div id="updateMsg"></div>
+      </div></div>
     </div>
   </div>
 </div>
@@ -518,6 +526,35 @@ async function saveSettings(){try{await jput('/api/settings',{default_policy:$v(
 async function applyAll(){try{const r=await jpost('/api/apply');msg('applyMsg',`已应用 ${r.policy_version}, ${r.affected} 台设备受影响`,'ok');loadStatus()}catch(e){msg('applyMsg',e,'err')}}
 async function rollback(){try{const r=await jpost('/api/rollback');msg('applyMsg','已回滚到: '+r.restored,'ok');loadStatus()}catch(e){msg('applyMsg',e,'err')}}
 async function togglePreview(){const el=document.getElementById('preview');if(el.style.display==='none'){const r=await jget('/api/singbox/preview');el.textContent=JSON.stringify(r,null,2);el.style.display='block'}else el.style.display='none'}
+
+async function checkUpdate(){
+  document.getElementById('updateInfo').textContent='检查中...';
+  try{
+    const r=await jget('/api/update/check');
+    document.getElementById('localVer').textContent=r.local_version||'未知';
+    document.getElementById('remoteVer').textContent=r.remote_version||'未知';
+    if(r.available){
+      document.getElementById('updateInfo').innerHTML=`<span class="badge cyan">有新版本</span> ${r.remote_message||''} <span style="color:#475569">${r.remote_date||''}</span>`;
+      document.getElementById('doUpdateBtn').style.display='inline-flex';
+    }else{
+      document.getElementById('updateInfo').innerHTML=r.error?`<span class="badge red">检查失败</span> ${r.error}`:'<span class="badge green">已是最新</span>';
+      document.getElementById('doUpdateBtn').style.display='none';
+    }
+  }catch(e){document.getElementById('updateInfo').textContent='检查失败: '+e}
+}
+async function doUpdate(){
+  if(!confirm('确认从 GitHub 拉取最新代码并更新？后端将自动重启。'))return;
+  const btn=document.getElementById('doUpdateBtn');btn.disabled=true;btn.textContent='更新中...';
+  try{
+    const r=await jpost('/api/update/apply');
+    let info=`更新了 ${r.updated.length} 个文件`;
+    if(r.errors.length)info+=`，${r.errors.length} 个失败`;
+    if(r.restart_scheduled)info+='，后端重启中...';
+    msg('updateMsg',info,'ok');
+    if(r.restart_scheduled)setTimeout(()=>location.reload(),5000);
+  }catch(e){msg('updateMsg','更新失败: '+e,'err')}
+  finally{btn.disabled=false;btn.textContent='立即更新'}
+}
 
 // ── Sources & Subs ──
 async function loadSources(){const s=await jget('/api/sources');document.getElementById('srcTable').innerHTML=s.map(s=>`<tr><td style="font-weight:700">${s.name}</td><td style="font-size:13px;color:#475569;font-family:monospace">${s.base_url}</td><td style="font-weight:700">${s.node_count}</td><td>${s.enabled?'<span class="badge green">启用</span>':'<span class="badge gray">禁用</span>'}</td><td style="white-space:nowrap"><button class="s p" onclick="syncSource('${s.id}')">同步</button> <button class="s d" onclick="delSource('${s.id}')">删除</button></td></tr>`).join('')}
