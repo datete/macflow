@@ -168,6 +168,21 @@ pre{background:#080c12;border:1px solid #1a2332;border-radius:10px;padding:20px;
 .remark-input{background:transparent;border:1px solid transparent;padding:4px 8px;font-size:13px;color:#64748b;border-radius:6px;width:120px;height:30px;transition:.15s}
 .remark-input:hover{border-color:#1a2332}
 .remark-input:focus{border-color:#3b82f6;background:#0a0f18;color:#e2e8f0}
+
+/* New Dashboard Layout */
+.dash-header {display:flex;align-items:center;gap:24px;background:#0c1219;border:1px solid #1a2332;border-radius:16px;padding:0 24px;margin-bottom:24px;height:80px}
+.header-sep {width:1px;height:32px;background:#1a2332}
+.header-section {display:flex;flex-direction:column;justify-content:center}
+.dash-grid {display:grid;grid-template-columns:300px 1fr 320px;gap:24px;height:calc(100vh - 140px)}
+.dash-col-left,.dash-col-right {display:flex;flex-direction:column;gap:20px;overflow-y:auto;padding-right:2px}
+.dash-col-left::-webkit-scrollbar,.dash-col-right::-webkit-scrollbar {width:4px}
+.dash-col-center {background:#080c12;border:1px solid #1a2332;border-radius:16px;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.topo-card {width:100%;height:100%;min-height:500px;position:relative;background:radial-gradient(circle at center,#111827 0%,#080c12 100%)}
+.topo-card canvas{width:100%;height:100%;display:block}
+.topo-detail {position:absolute;top:20px;right:20px;width:260px;background:rgba(15,23,42,.8);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:16px;color:#fff;z-index:10;display:none;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.dash-col-left .card,.dash-col-right .card {margin-bottom:0;flex-shrink:0}
+.dash-col-left .card-body,.dash-col-right .card-body {padding:20px}
+.dash-col-left table th,.dash-col-left table td {padding:8px 4px;font-size:12px}
 </style>
 </head>
 <body>
@@ -187,108 +202,175 @@ pre{background:#080c12;border:1px solid #1a2332;border-radius:10px;padding:20px;
 
 <!-- ══════ 仪表盘 ══════ -->
 <div id="tab-basic" class="tab-content active">
-  <div class="hero-grid" id="statusGrid"></div>
-  <div class="sys-bar" id="sysBar"><span>Loading...</span></div>
+  <!-- 顶部状态条 -->
+  <div class="dash-header">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="font-size:12px;color:#94a3b8;font-weight:600">服务开关</div>
+      <label class="sw sw-lg"><input type="checkbox" id="mainSw" onchange="toggleSvc(this.checked)"><span class="sl"></span></label>
+      <span id="swLabel" style="font-weight:700;color:#f1f5f9;font-size:16px">-</span>
+      <span id="swDot" class="status-dot off"></span>
+    </div>
+    <div class="header-sep"></div>
+    <div id="sysBar" class="sys-bar" style="margin:0;border:none;background:none;padding:0;display:flex;gap:24px;color:#94a3b8;font-size:13px;align-items:center"><span>Loading...</span></div>
+    <div class="header-sep"></div>
+    <div class="header-section">
+       <div style="font-size:12px;color:#94a3b8;margin-bottom:4px">实时流量</div>
+       <div style="font-weight:700;font-size:15px;color:#f1f5f9;font-variant-numeric:tabular-nums">
+         <span style="color:#22c55e" id="trafficUp">0 B/s</span> <span style="color:#475569">/</span> <span style="color:#3b82f6" id="trafficDown">0 B/s</span>
+       </div>
+    </div>
+  </div>
 
-  <!-- DNS Shield Panel -->
-  <div class="shield-panel">
-    <div class="shield-header">
-      <div class="shield-icon active" id="shieldIcon">&#128737;</div>
-      <div><div class="shield-title" id="shieldTitle">DNS 防泄露保护</div><div class="shield-sub" id="shieldSub">实时监控 DNS/DoH/DoQ/IPv6/STUN 泄露通道</div></div>
-      <div style="margin-left:auto;display:flex;gap:12px">
-        <button onclick="loadHealth()">刷新检测</button>
-        <button class="p" onclick="testRouterEgress()" style="height:44px">检测出口 IP</button>
+  <div class="dash-grid">
+    <!-- 左栏：控制中心 (300px) -->
+    <div class="dash-col-left">
+      <!-- 快捷操作 -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon" style="background:#eab30822;color:#facc15">&#128640;</span>快捷操作</div>
+        <div class="card-body">
+           <div style="display:flex;gap:8px;flex-wrap:wrap">
+             <button class="p" onclick="applyAll()" style="flex:1">全局应用</button>
+             <button onclick="checkUpdate()" style="flex:1">检查更新</button>
+           </div>
+           <div style="display:flex;gap:8px;margin-top:8px">
+             <button onclick="rollback()" style="flex:1">回滚</button>
+             <button onclick="togglePreview()" style="flex:1">预览</button>
+           </div>
+           <div id="applyMsg" style="margin-top:8px"></div>
+           <div id="updateMsg"></div>
+           
+           <!-- Version Info -->
+           <div style="margin-top:16px;font-size:12px;color:#64748b;display:flex;justify-content:space-between">
+             <span>策略: <span id="curVer" style="color:#22c55e">-</span></span>
+             <span>回滚: <span id="rbVer" style="color:#eab308">-</span></span>
+           </div>
+           <!-- Update Info -->
+           <div id="updateInfo" style="margin-top:8px;font-size:12px;color:#334155"></div>
+           <button class="p" id="doUpdateBtn" onclick="doUpdate()" style="display:none;width:100%;margin-top:8px">立即更新</button>
+           <div style="margin-top:4px"><span id="localVer" style="display:none"></span><span id="remoteVer" style="display:none"></span></div>
+        </div>
+      </div>
+
+      <!-- 策略控制 -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon" style="background:#8b5cf622;color:#c4b5fd">&#128272;</span>策略控制</div>
+        <div class="card-body">
+          <div class="fr"><label style="min-width:60px">默认</label><select id="defPolicy" style="flex:1"><option value="whitelist">白名单</option><option value="direct">直连</option><option value="block">阻断</option></select></div>
+          <div class="fr"><label style="min-width:60px">故障</label><select id="failPolicy" style="flex:1"><option value="fail-close">fail-close</option><option value="fail-open">fail-open</option></select></div>
+          
+          <div style="margin-top:12px;border-top:1px solid #1a2332;padding-top:12px">
+            <div class="fr"><label style="min-width:60px">DNS</label><input id="dnsPort" type="number" value="6053" style="width:70px"/><label style="margin-left:auto;min-width:auto">阻断DoH</label><label class="sw"><input type="checkbox" id="dnsBlock" checked><span class="sl"></span></label></div>
+            <div class="fr"><label style="flex:1">强制重定向</label><label class="sw"><input type="checkbox" id="dnsForce" checked><span class="sl"></span></label></div>
+            
+            <div style="margin-top:8px;font-size:12px;color:#475569">DNS 服务器</div>
+            <div id="dnsServerList" style="display:grid;grid-template-columns:1fr;gap:6px;margin-top:6px;max-height:160px;overflow-y:auto">
+               <label style="display:flex;align-items:center;gap:10px;padding:8px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;cursor:pointer"><input type="checkbox" class="dns-cb" value="8.8.8.8" checked style="accent-color:#16a34a"/><div><div style="font-size:13px;color:#e2e8f0">Google</div><div style="font-size:11px;color:#475569">8.8.8.8</div></div></label>
+               <label style="display:flex;align-items:center;gap:10px;padding:8px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;cursor:pointer"><input type="checkbox" class="dns-cb" value="1.1.1.1" checked style="accent-color:#16a34a"/><div><div style="font-size:13px;color:#e2e8f0">Cloudflare</div><div style="font-size:11px;color:#475569">1.1.1.1</div></div></label>
+               <label style="display:flex;align-items:center;gap:10px;padding:8px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;cursor:pointer"><input type="checkbox" class="dns-cb" value="208.67.222.222" style="accent-color:#16a34a"/><div><div style="font-size:13px;color:#e2e8f0">OpenDNS</div><div style="font-size:11px;color:#475569">208.67.222.222</div></div></label>
+               <label style="display:flex;align-items:center;gap:10px;padding:8px;background:#0a0f18;border:1px solid #1a2332;border-radius:8px;cursor:pointer"><input type="checkbox" class="dns-cb" value="9.9.9.9" style="accent-color:#16a34a"/><div><div style="font-size:13px;color:#e2e8f0">Quad9</div><div style="font-size:11px;color:#475569">9.9.9.9</div></div></label>
+            </div>
+          </div>
+          <button class="p" onclick="saveSettings()" style="width:100%;margin-top:12px">保存策略</button>
+          <div id="setMsg"></div>
+        </div>
+      </div>
+
+      <!-- 节点源 -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon" style="background:#3b82f622;color:#60a5fa">&#128279;</span>节点源</div>
+        <div class="card-body">
+           <div style="display:flex;gap:8px;margin-bottom:12px">
+             <button class="p" onclick="addSource()" style="flex:1">添加</button>
+             <button onclick="syncAllSources()" style="flex:1">同步</button>
+           </div>
+           <div style="margin-bottom:8px">
+             <input id="srcName" placeholder="源名称" style="width:100%;margin-bottom:4px"/>
+             <input id="srcUrl" placeholder="http://panel:port" style="width:100%"/>
+             <input id="srcUser" placeholder="用户名" style="width:48%;margin-top:4px"/>
+             <input id="srcPass" type="password" placeholder="密码" style="width:48%;margin-top:4px"/>
+           </div>
+           
+           <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">源列表</div>
+           <div style="overflow-x:auto">
+              <table style="font-size:12px">
+                <tbody id="srcTable"></tbody>
+              </table>
+           </div>
+           <div id="srcMsg"></div>
+           
+           <div style="margin-top:16px;border-top:1px solid #1a2332;padding-top:12px">
+             <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px">订阅列表</div>
+             <div style="display:flex;gap:4px;margin-bottom:8px">
+               <input id="subName" placeholder="名称" style="width:30%"/>
+               <input id="subUrl" placeholder="URL" style="flex:1"/>
+               <button class="s" onclick="addSub()">+</button>
+             </div>
+             <div style="overflow-x:auto"><table style="font-size:12px"><tbody id="subTable"></tbody></table></div>
+           </div>
+        </div>
       </div>
     </div>
-    <div class="shield-grid" id="shieldGrid"></div>
-    <div id="egressResult" style="margin-top:16px"></div>
-    <span id="egressStatus" style="font-size:13px;color:#334155;margin-top:8px;display:block"></span>
-  </div>
 
-  <div class="health-bar" id="healthGrid">
-    <div class="health-item"><div class="health-dot unknown"></div><span class="health-name">Loading...</span></div>
-  </div>
-
-  <div class="cols">
-    <div>
-      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#16a34a22;color:#22c55e">&#9889;</span>主开关</div><div class="card-body">
-        <div class="fr">
-          <label style="font-size:18px;font-weight:700;color:#e2e8f0">分流服务</label>
-          <label class="sw sw-lg"><input type="checkbox" id="mainSw" onchange="toggleSvc(this.checked)"><span class="sl"></span></label>
-          <span id="swDot" class="status-dot off"></span>
-          <span id="swLabel" style="font-size:16px;color:#475569;font-weight:600">-</span>
+    <!-- 中栏：拓扑监控 (1fr) -->
+    <div class="dash-col-center">
+      <div class="card topo-card" style="border:none;border-radius:0;margin:0">
+        <canvas id="topoCanvas"></canvas>
+        <div id="topoOverlay" style="position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end;padding:24px">
+           <div id="topoStats" style="display:flex;gap:16px;flex-wrap:wrap"></div>
         </div>
-      </div></div>
+        <div id="topoDetail" class="topo-detail"></div>
+      </div>
+    </div>
 
-      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#ef444422;color:#f87171">&#9888;</span>活动告警<span id="alertCntBadge" style="font-size:12px;color:#475569;margin-left:auto;font-weight:500"></span></div><div class="card-body">
-        <div id="alertList"><div class="empty" style="padding:24px">系统正常运行，无告警</div></div>
-      </div></div>
-
-      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#3b82f622;color:#60a5fa">&#128279;</span>节点源管理</div><div class="card-body">
-        <div class="toolbar">
-          <input id="srcName" placeholder="源名称" style="width:140px"/>
-          <input id="srcUrl" placeholder="http://panel:port" class="full"/>
-          <input id="srcUser" placeholder="用户名" style="width:120px"/>
-          <input id="srcPass" type="password" placeholder="密码" style="width:120px"/>
-          <button class="p" onclick="addSource()">添加</button>
-          <button onclick="syncAllSources()">全部同步</button>
+    <!-- 右栏：告警与防护 (320px) -->
+    <div class="dash-col-right">
+      <!-- 健康状态 -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon" style="background:#16a34a22;color:#22c55e">&#128151;</span>健康状态</div>
+        <div class="card-body" id="healthGrid" style="display:flex;flex-direction:column;gap:8px">
+           <div class="health-item"><span class="health-name">Loading...</span></div>
         </div>
-        <table><thead><tr><th>名称</th><th>地址</th><th>节点</th><th>状态</th><th>操作</th></tr></thead><tbody id="srcTable"></tbody></table>
-        <div id="srcMsg"></div>
-      </div></div>
-    </div>
-    <div>
-      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#8b5cf622;color:#c4b5fd">&#128272;</span>DNS / 安全策略</div><div class="card-body">
-        <div class="fr"><label>默认策略</label><select id="defPolicy" style="flex:1"><option value="whitelist">白名单（新设备无外网）</option><option value="direct">直连（新设备可上网）</option><option value="block">完全阻断</option></select></div>
-        <div class="fr"><label>故障策略</label><select id="failPolicy" style="width:220px"><option value="fail-close">fail-close（断网保护）</option><option value="fail-open">fail-open（放行）</option></select></div>
-        <div class="fr"><label>DNS 端口</label><input id="dnsPort" type="number" value="6053" style="width:100px"/><label style="min-width:auto">DoH 阻断</label><label class="sw"><input type="checkbox" id="dnsBlock" checked><span class="sl"></span></label><span style="font-size:12px;color:#334155">阻断加密 DNS 绕行</span></div>
-        <div style="margin:16px 0"><label style="font-size:13px;color:#475569;font-weight:600;display:block;margin-bottom:10px">DNS 服务器</label>
-        <div id="dnsServerList" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="8.8.8.8" checked style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Google DNS</div><div style="font-size:12px;color:#475569;font-family:monospace">8.8.8.8</div></div></label>
-          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="8.8.4.4" style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Google DNS 2</div><div style="font-size:12px;color:#475569;font-family:monospace">8.8.4.4</div></div></label>
-          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="1.1.1.1" checked style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Cloudflare</div><div style="font-size:12px;color:#475569;font-family:monospace">1.1.1.1</div></div></label>
-          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="1.0.0.1" style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Cloudflare 2</div><div style="font-size:12px;color:#475569;font-family:monospace">1.0.0.1</div></div></label>
-          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="208.67.222.222" style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">OpenDNS</div><div style="font-size:12px;color:#475569;font-family:monospace">208.67.222.222</div></div></label>
-          <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0a0f18;border:1px solid #1a2332;border-radius:10px;cursor:pointer;transition:.15s;min-width:0" onmouseover="this.style.borderColor='#334155'" onmouseout="this.style.borderColor=this.querySelector('input').checked?'#16a34a55':'#1a2332'"><input type="checkbox" class="dns-cb" value="9.9.9.9" style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer;flex-shrink:0"/><div><div style="font-size:14px;color:#e2e8f0;font-weight:600">Quad9</div><div style="font-size:12px;color:#475569;font-family:monospace">9.9.9.9</div></div></label>
-        </div></div>
-        <div class="fr" style="margin-top:12px"><label>强制重定向</label><label class="sw"><input type="checkbox" id="dnsForce" checked><span class="sl"></span></label><span style="font-size:13px;color:#475569">所有 DNS 查询强制走选中的服务器，防止泄露</span></div>
-        <button class="p" onclick="saveSettings()" style="min-width:160px">保存策略</button>
-        <div id="setMsg"></div>
-      </div></div>
+      </div>
 
-      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#06b6d422;color:#22d3ee">&#128196;</span>订阅管理</div><div class="card-body">
-        <div class="toolbar"><input id="subName" placeholder="订阅名" style="width:140px"/><input id="subUrl" placeholder="https://sub-url..." class="full"/><button class="p" onclick="addSub()">添加</button></div>
-        <table><thead><tr><th>名称</th><th>节点</th><th>操作</th></tr></thead><tbody id="subTable"></tbody></table>
-      </div></div>
+      <!-- DNS防护盾 -->
+      <div class="card">
+        <div class="card-title">
+           <span class="ct-icon" style="background:#06b6d422;color:#22d3ee">&#128737;</span>DNS 防护盾
+           <div style="margin-left:auto"><button class="s" onclick="loadHealth()">刷新</button></div>
+        </div>
+        <div class="card-body">
+          <div class="shield-header" style="margin-bottom:16px">
+             <div class="shield-icon active" id="shieldIcon" style="width:48px;height:48px;font-size:24px">&#128737;</div>
+             <div>
+               <div class="shield-title" id="shieldTitle" style="font-size:15px">防护保护</div>
+               <div class="shield-sub" id="shieldSub" style="font-size:12px">DNS/DoH/IPv6</div>
+             </div>
+          </div>
+          <div class="shield-grid" id="shieldGrid" style="grid-template-columns:1fr 1fr"></div>
+          
+          <div style="margin-top:16px;border-top:1px solid #1a2332;padding-top:16px">
+             <div style="display:flex;justify-content:space-between;align-items:center">
+               <span style="font-size:13px;font-weight:600;color:#94a3b8">出口 IP 检测</span>
+               <button class="s p" onclick="testRouterEgress()">开始检测</button>
+             </div>
+             <div id="egressResult" style="margin-top:12px;font-size:12px"></div>
+             <span id="egressStatus" style="font-size:12px;color:#334155;margin-top:4px;display:block"></span>
+          </div>
+        </div>
+      </div>
 
-      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#eab30822;color:#facc15">&#128640;</span>策略版本</div><div class="card-body">
-        <div class="fr"><label>当前</label><span id="curVer" style="color:#22c55e;font-weight:700;font-size:20px">-</span></div>
-        <div class="fr"><label>回滚</label><span id="rbVer" style="color:#eab308;font-weight:500">-</span></div>
-        <div style="display:flex;gap:12px;margin-top:8px"><button class="p" onclick="applyAll()" style="min-width:160px">全局应用</button><button onclick="rollback()">回滚</button><button onclick="togglePreview()">预览配置</button></div>
-        <div id="applyMsg"></div><pre id="preview" style="display:none;margin-top:12px"></pre>
-      </div></div>
-
-      <div class="card"><div class="card-title"><span class="ct-icon" style="background:#06b6d422;color:#22d3ee">&#9729;</span>云更新</div><div class="card-body">
-        <div class="fr"><label>本地版本</label><span id="localVer" style="font-family:monospace;color:#64748b">-</span></div>
-        <div class="fr"><label>远程版本</label><span id="remoteVer" style="font-family:monospace;color:#64748b">-</span></div>
-        <div id="updateInfo" style="font-size:13px;color:#334155;margin-bottom:12px"></div>
-        <div style="display:flex;gap:12px"><button onclick="checkUpdate()">检查更新</button><button class="p" id="doUpdateBtn" onclick="doUpdate()" style="display:none">立即更新</button></div>
-        <div id="updateMsg"></div>
-      </div></div>
-    </div>
-  </div>
-
-  <!-- Network Topology Monitor -->
-  <div class="card" style="padding:0;overflow:hidden">
-    <div class="card-title" style="padding:24px 24px 0 24px"><span class="ct-icon" style="background:#3b82f622;color:#60a5fa">&#127760;</span>网络拓扑监控</div>
-    <div id="topoContainer" style="position:relative;height:420px;background:linear-gradient(180deg,#080c12 0%,#0a1018 100%);overflow:hidden">
-      <canvas id="topoCanvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
-      <div id="topoOverlay" style="position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end;padding:20px">
-        <div id="topoStats" style="display:flex;gap:20px;flex-wrap:wrap"></div>
+      <!-- 活动告警 -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon" style="background:#ef444422;color:#f87171">&#9888;</span>活动告警 <span id="alertCntBadge" style="margin-left:auto;font-size:12px;font-weight:500"></span></div>
+        <div class="card-body" id="alertList">
+           <div class="empty" style="padding:16px">无告警</div>
+        </div>
       </div>
     </div>
   </div>
-
+  
+  <div id="statusGrid" style="display:none"></div>
+  <pre id="preview" style="display:none;margin-top:12px;position:fixed;top:100px;left:50%;transform:translateX(-50%);z-index:9999;width:800px;max-width:90vw;background:#0c1219;border:1px solid #334155;box-shadow:0 0 50px #000"></pre>
 </div>
 
 <!-- ══════ 节点管理 ══════ -->
@@ -419,26 +501,17 @@ function cssId(mac){return(mac||'').replace(/[^a-zA-Z0-9]/g,'_')}
 // ── Dashboard ──
 async function loadStatus(){
   const s=await jget('/api/status');
-  const h=s.overall_health||'unknown';
-  const hc=h==='ok'?'green':h==='critical'?'red':h==='warn'?'yellow':'';
-  const ac=s.critical_alert_count>0?'red':s.active_alert_count>0?'yellow':'green';
-  document.getElementById('statusGrid').innerHTML=[
-    HC('服务状态',s.enabled?'运行中':'已停止',s.enabled?'green':'red',s.enabled?'系统防护中':'防护未启动'),
-    HC('系统健康',h.toUpperCase(),hc,'探测: '+ft(s.last_probe_at)),
-    HC('告警',s.active_alert_count||'0',ac,s.critical_alert_count?s.critical_alert_count+' 个严重':'无告警'),
-    HC('纳管设备',s.managed_count+' / '+s.device_count,s.managed_count>0?'cyan':'','未纳管: '+(s.device_count-s.managed_count)),
-    HC('节点',s.node_enabled+' / '+s.node_count,'blue',s.source_count+' 个源 / '+s.sub_count+' 个订阅'),
-    HC('策略',s.default_policy==='whitelist'?'白名单':s.default_policy==='block'?'阻断':'直连','',s.failure_policy),
-    HC('版本',s.policy_version||'未应用','',s.rollback_version?'回滚: '+s.rollback_version:'无回滚点'),
-    HC('应用时间',ft(s.last_apply).replace(/^\d{4}\//,''),'','','font-size:16px'),
-    HC('实时下载',_tDown,'cyan',_tConn+'个连接','font-size:20px'),
-    HC('实时上传',_tUp,'blue','','font-size:20px'),
-  ].join('');
   document.getElementById('mainSw').checked=s.enabled;
   document.getElementById('swLabel').textContent=s.enabled?'已启用':'已停用';
   const dot=document.getElementById('swDot');if(dot)dot.className='status-dot '+(s.enabled?'on':'off');
   document.getElementById('curVer').textContent=s.policy_version||'-';
   document.getElementById('rbVer').textContent=s.rollback_version||'-';
+  const badge=document.getElementById('alertCntBadge');
+  if(badge){
+    const c=s.active_alert_count||0;
+    badge.textContent=c>0?c:'';
+    badge.style.display=c>0?'inline-block':'none';
+  }
 }
 
 let _tUp='0 B/s',_tDown='0 B/s',_tConn='0';
@@ -446,11 +519,15 @@ async function loadTraffic(){
   try{
     const t=await jget('/api/traffic/realtime');
     _tUp=t.up_str||'0 B/s';_tDown=t.down_str||'0 B/s';
+    const elUp=document.getElementById('trafficUp');
+    const elDown=document.getElementById('trafficDown');
+    if(elUp)elUp.textContent=_tUp;
+    if(elDown)elDown.textContent=_tDown;
   }catch(e){}
   try{
     const c=await jget('/api/traffic/connections');
     _tConn=c.count||'0';
-    _tTotal=`总上传: ${c.upload_total_str||'0 B'} | 总下载: ${c.download_total_str||'0 B'} | 连接: ${c.count||0}`;
+    _tTotal=`<span style="color:#334155">|</span> <span>连接: <b style="color:#e2e8f0">${c.count||0}</b></span>`;
   }catch(e){}
 }
 let _tTotal='';
@@ -458,12 +535,13 @@ async function loadSysInfo(){
   try{
     const s=await jget('/api/system/info');
     let html=`
-      <span>运行时间: <b>${s.uptime_str}</b></span>
-      <span>内存: <b>${s.memory_mb} MB</b></span>
-      <span>进程: <b>${s.pid}</b></span>
-      <span>探测周期: <b>${s.probe_cycle}</b></span>
+      <span>运行: <b style="color:#e2e8f0">${s.uptime_str}</b></span>
+      <span style="color:#334155">|</span>
+      <span>内存: <b style="color:#e2e8f0">${s.memory_mb} MB</b></span>
+      <span style="color:#334155">|</span>
+      <span>PID: <b style="color:#e2e8f0">${s.pid}</b></span>
     `;
-    if(_tTotal)html+=`<span>${_tTotal}</span>`;
+    if(_tTotal)html+=_tTotal;
     document.getElementById('sysBar').innerHTML=html;
   }catch(e){document.getElementById('sysBar').innerHTML='<span>系统信息不可用</span>'}
 }
@@ -695,112 +773,215 @@ async function clearLogs(){if(!confirm('清空所有日志？'))return;try{await
   try{N=await jget('/api/nodes')}catch(e){}
   updateManualForm();
   setInterval(loadSysInfo,10000);
-  setInterval(async()=>{await loadTraffic();loadStatus()},3000);
+  setInterval(async()=>{await loadTraffic();loadStatus()},1000);
   initTopo();
 })();
 
-// ── Network Topology Visualization ──
+// ── Network Topology Visualization (zoom + pan + ring layout) ──
 function initTopo(){
   const canvas=document.getElementById('topoCanvas');
   if(!canvas)return;
   const ctx=canvas.getContext('2d');
-  let W,H,particles=[],nodes_g=[],frame=0;
+  let W,H,nodes_g=[],frame=0;
+  let mx=-1000,my=-1000,hovered=null;
+  let zoom=1,panX=0,panY=0,dragging=false,dragSX=0,dragSY=0,dragPX=0,dragPY=0;
 
-  function resize(){W=canvas.width=canvas.offsetWidth*2;H=canvas.height=canvas.offsetHeight*2;ctx.scale(1,1)}
+  let detail=document.getElementById('topoDetail');
+  if(!detail){
+    detail=document.createElement('div');
+    detail.id='topoDetail';
+    detail.style.cssText='position:absolute;display:none;background:rgba(15,23,42,0.95);border:1px solid #334155;padding:14px;border-radius:10px;font-size:13px;color:#cbd5e1;backdrop-filter:blur(8px);z-index:100;box-shadow:0 12px 32px rgba(0,0,0,0.6);min-width:200px;line-height:1.6;pointer-events:auto';
+    canvas.parentElement.appendChild(detail);
+  }
+
+  function resize(){const p=canvas.parentElement;W=canvas.width=p.clientWidth||600;H=canvas.height=p.clientHeight||500}
   resize();window.addEventListener('resize',resize);
 
-  const colors={router:'#3b82f6',device:'#22c55e',node:'#f59e0b',direct:'#64748b',line:'#1e3a5f',particle:'#3b82f6'};
+  function tx(x){return(x+panX)*zoom+W/2*(1-zoom)}
+  function ty(y){return(y+panY)*zoom+H/2*(1-zoom)}
+  function itx(sx){return(sx-W/2*(1-zoom))/zoom-panX}
+  function ity(sy){return(sy-H/2*(1-zoom))/zoom-panY}
 
-  function drawNode(x,y,r,color,label,sub,pulse){
-    if(pulse){ctx.beginPath();ctx.arc(x,y,r+8+Math.sin(frame*0.05)*4,0,Math.PI*2);ctx.fillStyle=color+'15';ctx.fill()}
-    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
-    const grd=ctx.createRadialGradient(x,y,0,x,y,r);grd.addColorStop(0,color+'cc');grd.addColorStop(1,color+'44');
-    ctx.fillStyle=grd;ctx.fill();
-    ctx.strokeStyle=color+'66';ctx.lineWidth=2;ctx.stroke();
-    ctx.fillStyle='#f1f5f9';ctx.font='bold '+(r>20?'24':'18')+'px sans-serif';ctx.textAlign='center';ctx.fillText(label,x,y+6);
-    if(sub){ctx.fillStyle='#94a3b8';ctx.font='14px sans-serif';ctx.fillText(sub,x,y+r+18)}
-  }
+  canvas.addEventListener('wheel',e=>{e.preventDefault();const d=e.deltaY>0?0.9:1.1;zoom=Math.max(0.3,Math.min(4,zoom*d))},{passive:false});
+  canvas.addEventListener('mousedown',e=>{if(e.button===0&&!hovered){dragging=true;dragSX=e.offsetX;dragSY=e.offsetY;dragPX=panX;dragPY=panY;canvas.style.cursor='grabbing'}});
+  canvas.addEventListener('mousemove',e=>{
+    const r=canvas.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;
+    if(dragging){panX=dragPX+(mx-dragSX)/zoom;panY=dragPY+(my-dragSY)/zoom}
+  });
+  canvas.addEventListener('mouseup',()=>{dragging=false});
+  canvas.addEventListener('mouseleave',()=>{mx=-1000;my=-1000;dragging=false;detail.style.display='none'});
+  canvas.addEventListener('dblclick',()=>{zoom=1;panX=0;panY=0});
 
-  function drawLine(x1,y1,x2,y2,color,speed){
-    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=color||colors.line;ctx.lineWidth=2;ctx.stroke();
-    if(speed>0){
-      const t=((frame*speed*0.02)%1);
-      const px=x1+(x2-x1)*t,py=y1+(y2-y1)*t;
-      ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fillStyle='#3b82f6';ctx.fill();
-      ctx.beginPath();ctx.arc(px,py,8,0,Math.PI*2);ctx.fillStyle='#3b82f622';ctx.fill();
+  canvas.addEventListener('click',e=>{
+    if(dragging)return;
+    if(!hovered){detail.style.display='none';return}
+    let h='';
+    if(hovered.type==='device'){
+      const d=D.find(x=>x.mac===hovered.mac)||{};
+      h=`<div style="font-weight:700;color:#4ade80;margin-bottom:8px;font-size:15px">${d.name||'设备'}</div>
+         <div style="font-family:monospace;color:#64748b;margin-bottom:6px">${d.mac}</div>
+         <div style="display:grid;grid-template-columns:50px 1fr;gap:4px">
+           <span style="color:#475569">节点</span><span style="color:#f59e0b">${d.node_tag||'直连'}</span>
+           <span style="color:#475569">备注</span><span>${d.remark||'-'}</span>
+           <span style="color:#475569">下行</span><span style="color:#06b6d4">${_tDown}</span>
+           <span style="color:#475569">上行</span><span style="color:#3b82f6">${_tUp}</span>
+         </div>
+         <div style="margin-top:8px"><button onclick="testDevEgress('${d.mac}',this)" style="font-size:11px;padding:4px 10px;height:auto;border-radius:4px">检测出口IP</button></div>`;
+    }else if(hovered.type==='node'){
+      const n=N.find(x=>x.tag===hovered.tag)||{};
+      h=`<div style="font-weight:700;color:#f59e0b;margin-bottom:8px;font-size:15px">${n.tag||''}</div>
+         <span class="badge blue" style="padding:2px 8px;font-size:11px">${n.type||'?'}</span>
+         <div style="display:grid;grid-template-columns:50px 1fr;gap:4px;margin-top:6px">
+           <span style="color:#475569">地址</span><span style="font-family:monospace;font-size:12px">${n.server||'?'}:${n.server_port||''}</span>
+           <span style="color:#475569">延迟</span><span style="color:${(n.latency||999)<100?'#22c55e':'#eab308'}">${n.latency?n.latency+'ms':'-'}</span>
+           <span style="color:#475569">出口</span><span>${_nodeEgress[hovered.tag]||'未检测'}</span>
+         </div>
+         <div style="margin-top:8px;display:flex;gap:6px">
+           <button onclick="testNodeEgress('${n.tag}',this)" style="font-size:11px;padding:4px 8px;height:auto;border-radius:4px">检测出口</button>
+           <button onclick="testN('${n.tag}')" style="font-size:11px;padding:4px 8px;height:auto;border-radius:4px">延迟</button>
+         </div>`;
+    }else if(hovered.type==='router'){
+      h=`<div style="font-weight:700;color:#3b82f6;margin-bottom:8px;font-size:15px">MACFlow 网关</div>
+         <div style="display:grid;grid-template-columns:50px 1fr;gap:4px">
+           <span style="color:#475569">连接</span><span style="color:#22c55e">${_tConn||0}</span>
+           <span style="color:#475569">下行</span><span style="color:#06b6d4">${_tDown}</span>
+           <span style="color:#475569">上行</span><span style="color:#3b82f6">${_tUp}</span>
+           <span style="color:#475569">设备</span><span>${D.filter(d=>d.managed).length}</span>
+           <span style="color:#475569">节点</span><span>${N.filter(n=>n.enabled).length}</span>
+         </div>`;
     }
+    if(h){
+      detail.innerHTML=h;
+      let dx=e.offsetX+20,dy=e.offsetY+20;
+      if(dx+220>W)dx=dx-240;if(dy+200>H)dy=dy-220;
+      detail.style.left=Math.max(8,dx)+'px';detail.style.top=Math.max(8,dy)+'px';
+      detail.style.display='block';
+    }
+  });
+
+  const colors={router:'#3b82f6',device:'#22c55e',node:'#f59e0b',line:'#1e3a5f'};
+
+  function drawNode(n){
+    const sx=tx(n.x),sy=ty(n.y),sr=n.r*zoom;
+    if(sr<2)return;
+    const isH=n===hovered;
+    if(n.pulse){ctx.beginPath();ctx.arc(sx,sy,sr+6*zoom+Math.sin(frame*0.05)*3*zoom,0,Math.PI*2);ctx.fillStyle=n.color+'15';ctx.fill()}
+    ctx.beginPath();ctx.arc(sx,sy,isH?sr+2:sr,0,Math.PI*2);
+    const g=ctx.createRadialGradient(sx,sy,0,sx,sy,isH?sr+2:sr);
+    g.addColorStop(0,n.color+(isH?'ee':'cc'));g.addColorStop(1,n.color+'44');
+    ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle=n.color+(isH?'ff':'55');ctx.lineWidth=isH?3:1.5;ctx.stroke();
+    if(sr>8){ctx.fillStyle='#f1f5f9';ctx.font=`bold ${Math.max(8,sr*0.8)|0}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.label,sx,sy+1)}
+    if(n.sub&&!isH&&sr>12){ctx.fillStyle='#64748b';ctx.font=`${Math.max(8,10*zoom)|0}px sans-serif`;ctx.fillText(n.sub,sx,sy+sr+10*zoom)}
   }
 
-  function drawTrafficBar(x,y,w,h,val,max,color){
-    ctx.fillStyle='#1a2332';ctx.fillRect(x,y,w,h);
-    const fw=Math.min(1,val/Math.max(max,1))*w;
-    const grd=ctx.createLinearGradient(x,y,x+fw,y);grd.addColorStop(0,color+'88');grd.addColorStop(1,color);
-    ctx.fillStyle=grd;ctx.fillRect(x,y,fw,h);
+  function drawLine(x1,y1,x2,y2,c,spd,highlight){
+    const sx1=tx(x1),sy1=ty(y1),sx2=tx(x2),sy2=ty(y2);
+    ctx.beginPath();ctx.moveTo(sx1,sy1);ctx.lineTo(sx2,sy2);
+    ctx.strokeStyle=c;ctx.lineWidth=highlight?3:1.5;ctx.globalAlpha=highlight?1:0.4;ctx.stroke();ctx.globalAlpha=1;
+    if(spd>0&&highlight){
+      const t=((frame*spd*0.015)%1);
+      const px=sx1+(sx2-sx1)*t,py=sy1+(sy2-sy1)*t;
+      ctx.beginPath();ctx.arc(px,py,4*zoom,0,Math.PI*2);ctx.fillStyle='#3b82f6';ctx.fill();
+      ctx.beginPath();ctx.arc(px,py,8*zoom,0,Math.PI*2);ctx.fillStyle='#3b82f622';ctx.fill();
+    }
   }
 
   async function loadTopoData(){
     try{
       const devs=D.length?D:await jget('/api/devices');
       const nodesData=N.length?N:await jget('/api/nodes');
-      const activeNodes=new Set(devs.filter(d=>d.managed&&d.node_tag&&d.node_tag!=='direct').map(d=>d.node_tag));
       nodes_g=[];
-      const cx=W/2,cy=120;
-      nodes_g.push({type:'router',x:cx,y:cy,r:32,color:colors.router,label:'R',sub:'MACFlow',pulse:true});
+      const cx=W/2,cy=H/2;
+      nodes_g.push({type:'router',ox:cx,oy:cy-40,x:cx,y:cy-40,r:28,color:colors.router,label:'R',sub:'Gateway',pulse:true});
 
-      const managedDevs=devs.filter(d=>d.managed);
-      const unmanagedDevs=devs.filter(d=>!d.managed);
-      const devStartX=80,devY=cy+160,devGap=Math.min(140,(W-160)/Math.max(managedDevs.length,1));
-      managedDevs.forEach((d,i)=>{
-        const x=devStartX+i*devGap+devGap/2;
-        nodes_g.push({type:'device',x,y:devY,r:22,color:colors.device,label:d.name?.substring(0,2)||'D',
-          sub:(d.node_tag||'直连')+(d.remark?' '+d.remark:''),
-          mac:d.mac,node_tag:d.node_tag,managed:true,speed:Math.random()*3+1});
-      });
+      const mDevs=devs.filter(d=>d.managed);
+      const showDevs=mDevs.length>30?mDevs.slice(0,30):mDevs;
+      const devCount=showDevs.length;
 
-      const usedNodes=nodesData.filter(n=>activeNodes.has(n.tag)&&n.enabled);
-      const nodeStartX=80,nodeY=cy+320,nodeGap=Math.min(160,(W-160)/Math.max(usedNodes.length,1));
-      usedNodes.forEach((n,i)=>{
-        const x=nodeStartX+i*nodeGap+nodeGap/2;
-        const lat=n.latency>0?n.latency+'ms':'';
-        nodes_g.push({type:'node',x,y:nodeY,r:20,color:colors.node,label:n.type?.substring(0,2).toUpperCase()||'N',
-          sub:n.tag?.substring(0,12)+(lat?' '+lat:''),tag:n.tag,speed:Math.random()*2+0.5});
-      });
+      if(devCount<=8){
+        const gap=Math.min(100,(W-80)/Math.max(devCount,1));
+        const startX=(W-gap*(devCount-1))/2;
+        showDevs.forEach((d,i)=>{
+          const x=startX+i*gap,y=cy+80;
+          nodes_g.push({type:'device',ox:x,oy:y,x,y,r:16,color:colors.device,label:d.name?.slice(0,2)||'D',sub:d.name?.substring(0,8),mac:d.mac,node_tag:d.node_tag,speed:1+Math.random()*2});
+        });
+      }else{
+        const ringR=Math.min(W,H)*0.3;
+        showDevs.forEach((d,i)=>{
+          const angle=-Math.PI/2+i*(2*Math.PI/devCount);
+          const x=cx+Math.cos(angle)*ringR,y=cy+Math.sin(angle)*ringR;
+          nodes_g.push({type:'device',ox:x,oy:y,x,y,r:14,color:colors.device,label:d.name?.slice(0,2)||'D',sub:d.name?.substring(0,6),mac:d.mac,node_tag:d.node_tag,speed:1+Math.random()*2});
+        });
+      }
+      if(mDevs.length>30){
+        const extra=mDevs.length-30;
+        nodes_g.push({type:'device',ox:cx+60,oy:cy+120,x:cx+60,y:cy+120,r:20,color:'#64748b',label:'+'+extra,sub:'更多设备',mac:'',node_tag:'',speed:0});
+      }
+
+      const activeNodes=new Set(mDevs.map(d=>d.node_tag).filter(t=>t&&t!=='direct'));
+      const uNodes=nodesData.filter(n=>activeNodes.has(n.tag));
+      const nCount=uNodes.length;
+      if(nCount>0){
+        const nodeRingR=Math.min(W,H)*0.42;
+        uNodes.forEach((n,i)=>{
+          const angle=-Math.PI/2+i*(2*Math.PI/nCount)+(nCount>1?Math.PI/nCount:0);
+          const x=cx+Math.cos(angle)*nodeRingR,y=cy+Math.sin(angle)*nodeRingR;
+          nodes_g.push({type:'node',ox:x,oy:y,x,y,r:14,color:colors.node,label:n.type?.slice(0,2).toUpperCase()||'N',sub:n.tag?.substring(0,10),tag:n.tag});
+        });
+      }
     }catch(e){}
   }
 
   function render(){
     ctx.clearRect(0,0,W,H);
     frame++;
+    hovered=null;
+    if(!dragging){
+      for(let i=nodes_g.length-1;i>=0;i--){
+        const n=nodes_g[i];
+        const sx=tx(n.x),sy=ty(n.y),sr=n.r*zoom;
+        const dx=mx-sx,dy=my-sy;
+        if(dx*dx+dy*dy<=(sr+6)*(sr+6)){hovered=n;break}
+      }
+    }
+    canvas.style.cursor=dragging?'grabbing':hovered?'pointer':'grab';
+
     const router=nodes_g.find(n=>n.type==='router');
-    if(!router){requestAnimationFrame(render);return}
+    if(router){
+      const devNodes=nodes_g.filter(n=>n.type==='device');
+      devNodes.forEach(d=>{
+        const isHL=hovered===d||hovered===router||(hovered?.type==='node'&&hovered.tag===d.node_tag);
+        drawLine(router.x,router.y+router.r,d.x,d.y-d.r,colors.line,d.speed,isHL);
+        if(d.node_tag&&d.node_tag!=='direct'){
+          const tn=nodes_g.find(n=>n.type==='node'&&n.tag===d.node_tag);
+          if(tn){
+            const isHL2=hovered===d||hovered===tn;
+            drawLine(d.x,d.y+d.r,tn.x,tn.y-tn.r,'#f59e0b',1.5,isHL2);
+          }
+        }
+      });
+    }
+    nodes_g.forEach(drawNode);
 
-    nodes_g.filter(n=>n.type==='device').forEach(d=>{
-      drawLine(router.x,router.y+router.r,d.x,d.y-d.r,colors.line+'88',d.speed||1);
-      const targetNode=nodes_g.find(n=>n.type==='node'&&n.tag===d.node_tag);
-      if(targetNode)drawLine(d.x,d.y+d.r,targetNode.x,targetNode.y-targetNode.r,'#f59e0b33',d.speed||0.5);
-    });
-
-    nodes_g.forEach(n=>drawNode(n.x,n.y,n.r,n.color,n.label,n.sub,n.pulse));
+    ctx.fillStyle='#334155';ctx.font='11px sans-serif';ctx.textAlign='left';
+    ctx.fillText(`缩放: ${(zoom*100)|0}%  |  滚轮缩放  |  拖拽平移  |  双击重置`,10,H-10);
 
     const statsEl=document.getElementById('topoStats');
-    if(statsEl&&frame%60===1){
-      const devCount=nodes_g.filter(n=>n.type==='device').length;
-      const nodeCount=nodes_g.filter(n=>n.type==='node').length;
+    if(statsEl&&frame%30===1){
+      const dc=nodes_g.filter(n=>n.type==='device').length;
+      const nc=nodes_g.filter(n=>n.type==='node').length;
       statsEl.innerHTML=`
-        <span style="background:#0a0f1888;padding:6px 14px;border-radius:8px;font-size:13px;color:#94a3b8;border:1px solid #1a2332">
-          纳管设备: <b style="color:#22c55e">${devCount}</b></span>
-        <span style="background:#0a0f1888;padding:6px 14px;border-radius:8px;font-size:13px;color:#94a3b8;border:1px solid #1a2332">
-          活跃节点: <b style="color:#f59e0b">${nodeCount}</b></span>
-        <span style="background:#0a0f1888;padding:6px 14px;border-radius:8px;font-size:13px;color:#94a3b8;border:1px solid #1a2332">
-          下行: <b style="color:#06b6d4">${_tDown}</b></span>
-        <span style="background:#0a0f1888;padding:6px 14px;border-radius:8px;font-size:13px;color:#94a3b8;border:1px solid #1a2332">
-          上行: <b style="color:#3b82f6">${_tUp}</b></span>`;
+        <span style="background:#0a0f1888;padding:5px 12px;border-radius:6px;font-size:12px;color:#94a3b8;border:1px solid #1a2332">设备: <b style="color:#22c55e">${dc}</b></span>
+        <span style="background:#0a0f1888;padding:5px 12px;border-radius:6px;font-size:12px;color:#94a3b8;border:1px solid #1a2332">节点: <b style="color:#f59e0b">${nc}</b></span>
+        <span style="background:#0a0f1888;padding:5px 12px;border-radius:6px;font-size:12px;color:#94a3b8;border:1px solid #1a2332">↓ <b style="color:#06b6d4">${_tDown}</b></span>
+        <span style="background:#0a0f1888;padding:5px 12px;border-radius:6px;font-size:12px;color:#94a3b8;border:1px solid #1a2332">↑ <b style="color:#3b82f6">${_tUp}</b></span>`;
     }
     requestAnimationFrame(render);
   }
 
   loadTopoData();
-  setInterval(loadTopoData,10000);
+  setInterval(loadTopoData,5000);
   render();
 }
 </script>
