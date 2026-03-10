@@ -1,0 +1,22 @@
+#!/bin/sh
+# MACFlow：首次启动网络配置
+# LAN 设置为 192.168.2.1/24（避免与上游 192.168.100.x 等常见网段冲突）
+# 只在 IP 仍是默认值时才修改
+
+CURRENT_IP="$(uci get network.lan.ipaddr 2>/dev/null)"
+case "$CURRENT_IP" in
+    192.168.1.1|"")
+        uci set network.lan.ipaddr='192.168.2.1'
+        uci set network.lan.netmask='255.255.255.0'
+        uci commit network
+        logger -t macflow-defaults "LAN changed to 192.168.2.1/24"
+        ;;
+    *)
+        logger -t macflow-defaults "LAN already customized ($CURRENT_IP), skip"
+        ;;
+esac
+
+# macflow 服务在 init.d 的 start 顺序 95，首次启动自动 enable
+/etc/init.d/macflow enable >/dev/null 2>&1 || true
+
+exit 0

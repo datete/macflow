@@ -3,7 +3,7 @@ table inet macflow {
     type ether_addr : mark
     elements = {
       02:AA:BB:CC:DD:01 : 0x100,
-      02:AA:BB:CC:DD:02 : 0x200
+      02:AA:BB:CC:DD:02 : 0x101
     }
   }
 

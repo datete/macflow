@@ -96,9 +96,24 @@ rollback() {
 
 acquire_lock() {
   if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
-    echo "[atomic_apply] another apply process is running" >&2
-    exit 3
+    # Check if the PID holding the lock is still alive
+    if [ -f "${LOCK_DIR}/pid" ]; then
+      local old_pid
+      old_pid=$(cat "${LOCK_DIR}/pid" 2>/dev/null || echo "")
+      if [ -n "${old_pid}" ] && ! kill -0 "${old_pid}" 2>/dev/null; then
+        echo "[atomic_apply] stale lock from dead PID ${old_pid}, removing"
+        rm -rf "${LOCK_DIR}"
+        mkdir "${LOCK_DIR}" 2>/dev/null || { echo "[atomic_apply] cannot acquire lock" >&2; exit 3; }
+      else
+        echo "[atomic_apply] another apply process is running (PID ${old_pid})" >&2
+        exit 3
+      fi
+    else
+      echo "[atomic_apply] another apply process is running" >&2
+      exit 3
+    fi
   fi
+  echo $$ > "${LOCK_DIR}/pid"
 }
 
 release_lock() {

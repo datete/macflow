@@ -51,6 +51,12 @@ if [[ -z "${ACTION}" || -z "${MAC}" ]]; then
   exit 1
 fi
 
+# Validate MAC address format
+if ! echo "${MAC}" | grep -qiE '^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$'; then
+  echo "[device_patch] invalid MAC format: ${MAC}" >&2
+  exit 2
+fi
+
 run_cmd() {
   if [[ -n "${NS}" ]]; then
     ip netns exec "${NS}" "$@"

@@ -1,0 +1,18 @@
+#!/bin/sh
+
+MODE="${1:-quick}"
+
+case "$MODE" in
+  quick)
+    cd /opt/macflow
+    exec bash vm/final-check.sh
+    ;;
+  full)
+    cd /opt/macflow
+    exec env MACFLOW_LONG_TESTS=1 bash vm/run-all-tests.sh
+    ;;
+  *)
+    echo "usage: $0 [quick|full]" >&2
+    exit 1
+    ;;
+esac

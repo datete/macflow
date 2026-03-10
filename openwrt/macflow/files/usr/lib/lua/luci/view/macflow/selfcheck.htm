@@ -1,0 +1,41 @@
+<%+header%>
+
+<h2><%:MACFlow Self Check%></h2>
+<div class="cbi-map">
+  <div class="cbi-section">
+    <div class="cbi-section-node">
+      <p>安装后可直接执行健康自检，快速确认分流、防泄露、fail-close 是否生效。</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 14px">
+        <button class="btn cbi-button cbi-button-apply" onclick="runCheck('quick')">一键快速自检</button>
+        <button class="btn cbi-button" onclick="runCheck('full')">全量回归自检</button>
+        <span id="selfcheck-state" style="color:#666">等待执行</span>
+      </div>
+      <textarea id="selfcheck-output" readonly="readonly" style="width:100%;min-height:420px;font-family:monospace;line-height:1.35"></textarea>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+function runCheck(mode) {
+  var st = document.getElementById('selfcheck-state');
+  var out = document.getElementById('selfcheck-output');
+  st.textContent = '执行中...';
+  out.value = '';
+  fetch('<%=luci.dispatcher.build_url("admin", "services", "macflow", "run_selfcheck")%>?mode=' + encodeURIComponent(mode), {
+    method: 'GET',
+    credentials: 'same-origin'
+  }).then(function(resp) {
+    return resp.json();
+  }).then(function(data) {
+    out.value = data.output || '';
+    st.textContent = data.ok ? '完成: PASS' : '完成: FAIL';
+    st.style.color = data.ok ? '#2d8f2d' : '#c23535';
+  }).catch(function(err) {
+    st.textContent = '执行失败';
+    st.style.color = '#c23535';
+    out.value = String(err || 'unknown error');
+  });
+}
+</script>
+
+<%+footer%>

@@ -1,0 +1,23 @@
+#!/bin/sh
+
+[ "$ACTION" = "ifup" ] || exit 0
+[ "$INTERFACE" = "wan" ] || [ "$INTERFACE" = "wan6" ] || exit 0
+
+/etc/init.d/macflow enabled >/dev/null 2>&1 || exit 0
+
+LOCK_FILE="/tmp/macflow-hotplug.lock"
+if [ -f "$LOCK_FILE" ]; then
+    OLD_PID=$(cat "$LOCK_FILE" 2>/dev/null)
+    if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+        exit 0
+    fi
+fi
+
+(
+    echo $$ > "$LOCK_FILE"
+    sleep 3
+    curl -fsS -X POST http://127.0.0.1:18080/api/apply >/dev/null 2>&1 || true
+    rm -f "$LOCK_FILE"
+) &
+
+exit 0

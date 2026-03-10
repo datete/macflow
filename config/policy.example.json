@@ -26,8 +26,8 @@
     },
     {
       "name": "proxy_us",
-      "mark": 512,
-      "route_table": 200,
+      "mark": 257,
+      "route_table": 101,
       "mode": "proxy",
       "tun_gateway": "10.0.1.2"
     }

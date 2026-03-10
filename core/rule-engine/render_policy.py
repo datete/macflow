@@ -46,6 +46,20 @@ def render_nft(policy: dict) -> str:
     dns_cfg = policy.get("dns", {})
     dns_port = int(dns_cfg.get("enforce_redirect_port", 6053))
     doh_block_ipv4 = dns_cfg.get("doh_block_ipv4", [])
+    doh_block_ipv6 = dns_cfg.get("doh_block_ipv6", [])
+
+    # Default well-known DoH server IPs if none configured
+    _DEFAULT_DOH_IPV4 = [
+        "1.0.0.1", "1.1.1.1", "8.8.4.4", "8.8.8.8",
+        "9.9.9.9", "149.112.112.112",
+        "94.140.14.14", "94.140.15.15",
+        "208.67.220.220", "208.67.222.222",
+    ]
+    _DEFAULT_DOH_IPV6 = [
+        "2606:4700:4700::1001", "2606:4700:4700::1111",
+        "2001:4860:4860::8844", "2001:4860:4860::8888",
+        "2620:fe::9", "2620:fe::fe",
+    ]
 
     mac_elements = []
     managed_macs = []
@@ -60,11 +74,13 @@ def render_nft(policy: dict) -> str:
         managed_macs.append("      00:00:00:00:00:00")
         mac_elements.append(f"      00:00:00:00:00:00 : 0x{default_mark:x}")
 
-    doh_elements = ", ".join(doh_block_ipv4) if doh_block_ipv4 else "127.0.0.1"
+    doh4_list = doh_block_ipv4 if doh_block_ipv4 else _DEFAULT_DOH_IPV4
+    doh6_list = doh_block_ipv6 if doh_block_ipv6 else _DEFAULT_DOH_IPV6
+    doh4_elements = ", ".join(doh4_list)
+    doh6_elements = ", ".join(doh6_list)
     nl = "\n"
     mac_block = f",{nl}".join(mac_elements)
     managed_block = f",{nl}".join(managed_macs)
-    default_hex = f"0x{default_mark:x}"
 
     lines = [
         "table inet macflow {",
@@ -84,15 +100,19 @@ def render_nft(policy: dict) -> str:
         "",
         "  set doh_ipv4 {",
         "    type ipv4_addr",
-        f"    elements = {{ {doh_elements} }}",
+        f"    elements = {{ {doh4_elements} }}",
+        "  }",
+        "",
+        "  set doh_ipv6 {",
+        "    type ipv6_addr",
+        f"    elements = {{ {doh6_elements} }}",
         "  }",
         "",
         "  chain prerouting_mark {",
         "    type filter hook prerouting priority mangle; policy accept;",
-        "    meta mark set ct mark",
-        f"    meta mark set {default_hex}",
+        "    ct mark != 0x0 meta mark set ct mark",
         "    ct state new ether saddr @managed_macs meta mark set ether saddr map @mac_to_mark",
-        "    ct mark set meta mark",
+        "    ct state new ct mark set meta mark",
         "  }",
         "",
         "  chain dns_guard {",
@@ -105,8 +125,15 @@ def render_nft(policy: dict) -> str:
         "    type filter hook forward priority filter; policy accept;",
         "    meta mark != 0x0 ip daddr @doh_ipv4 tcp dport 443 counter drop",
         "    meta mark != 0x0 ip daddr @doh_ipv4 udp dport 443 counter drop",
-        "    meta mark != 0x0 udp dport 853 counter drop",
+        "    meta mark != 0x0 ip6 daddr @doh_ipv6 tcp dport 443 counter drop",
+        "    meta mark != 0x0 ip6 daddr @doh_ipv6 udp dport 443 counter drop",
         "    meta mark != 0x0 tcp dport 853 counter drop",
+        "    meta mark != 0x0 udp dport 853 counter drop",
+        "    meta mark != 0x0 udp dport 8853 counter drop",
+        "    meta mark != 0x0 udp dport 784 counter drop",
+        "    meta mark != 0x0 udp dport 3478 counter drop",
+        "    meta mark != 0x0 udp dport 5349 counter drop",
+        "    meta mark != 0x0 tcp dport 3478 counter drop",
         "  }",
         "}",
         "",
@@ -137,6 +164,15 @@ def render_rule_manifest(policy: dict) -> dict:
 
 
 def render_iprules(policy: dict) -> str:
+    """Render ip rule/route commands.
+
+    Table assignment: Uses sequential table numbers starting at MARK_TABLE_BASE (100),
+    ordered by mark value. This matches the runtime backend (main.py) _mark_to_table()
+    allocation scheme. The group's route_table field is used as a hint but the sequential
+    assignment takes precedence to ensure consistency.
+    """
+    MARK_TABLE_BASE = 100
+
     lines = [
         "#!/usr/bin/env bash",
         "set -euo pipefail",
@@ -149,12 +185,14 @@ def render_iprules(policy: dict) -> str:
         "",
     ]
 
+    # Build sorted list of non-zero marks for sequential table assignment
+    proxy_groups = [g for g in policy["groups"] if int(g["mark"]) != 0]
+    proxy_groups.sort(key=lambda g: int(g["mark"]))
+
     pref = 20000
-    for g in policy["groups"]:
+    for idx, g in enumerate(proxy_groups):
         mark = int(g["mark"])
-        table = int(g["route_table"])
-        if mark == 0:
-            continue
+        table = MARK_TABLE_BASE + idx
         lines.append(
             f"ip -4 rule add pref {pref} fwmark 0x{mark:x} lookup {table} # macflow"
         )
