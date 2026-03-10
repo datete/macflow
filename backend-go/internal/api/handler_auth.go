@@ -38,10 +38,16 @@ func extractToken(c *gin.Context) string {
 func (s *Server) handleAuthStatus(c *gin.Context) {
 	cfg := s.auth.LoadAuth()
 	token := extractToken(c)
+	role := s.auth.GetSessionRole(token)
+	if role == "" && !cfg.AuthEnabled {
+		role = "admin"
+	}
 	c.JSON(200, gin.H{
-		"auth_enabled":  cfg.AuthEnabled,
-		"password_set":  cfg.PasswordHash != "",
-		"valid_session": s.auth.ValidateSession(token),
+		"auth_enabled":     cfg.AuthEnabled,
+		"password_set":     cfg.PasswordHash != "",
+		"valid_session":    s.auth.ValidateSession(token),
+		"role":             role,
+		"readonly_enabled": cfg.ReadonlyEnabled,
 	})
 }
 
@@ -63,24 +69,39 @@ func (s *Server) handleAuthLogin(c *gin.Context) {
 
 	cfg := s.auth.LoadAuth()
 	if !cfg.AuthEnabled {
-		c.JSON(200, gin.H{"ok": true, "message": "认证未启用", "token": ""})
+		c.JSON(200, gin.H{"ok": true, "message": "认证未启用", "token": "", "role": "admin"})
 		return
 	}
 
+	// Try readonly password first (if enabled and set)
+	if cfg.ReadonlyEnabled && cfg.ReadonlyPasswordHash != "" {
+		if auth.VerifyPassword(req.Password, cfg.ReadonlyPasswordHash) {
+			token, err := s.auth.CreateSession(clientIP, "readonly")
+			if err != nil {
+				c.JSON(500, gin.H{"detail": "创建会话失败"})
+				return
+			}
+			c.SetCookie("macflow_token", token, int(auth.SessionTTL.Seconds()), "/", "", false, true)
+			c.JSON(200, gin.H{"ok": true, "message": "登录成功（只读模式）", "token": token, "role": "readonly"})
+			return
+		}
+	}
+
+	// Try admin password
 	if !auth.VerifyPassword(req.Password, cfg.PasswordHash) {
 		s.auth.RecordAttempt(clientIP)
 		c.JSON(401, gin.H{"detail": "密码错误"})
 		return
 	}
 
-	token, err := s.auth.CreateSession(clientIP)
+	token, err := s.auth.CreateSession(clientIP, "admin")
 	if err != nil {
 		c.JSON(500, gin.H{"detail": "创建会话失败"})
 		return
 	}
 
 	c.SetCookie("macflow_token", token, int(auth.SessionTTL.Seconds()), "/", "", false, true)
-	c.JSON(200, gin.H{"ok": true, "message": "登录成功", "token": token})
+	c.JSON(200, gin.H{"ok": true, "message": "登录成功", "token": token, "role": "admin"})
 }
 
 // POST /api/auth/logout
@@ -145,7 +166,7 @@ func (s *Server) handleAuthSetup(c *gin.Context) {
 	s.auth.ClearSessions()
 
 	// Create a new session for the user
-	token, err := s.auth.CreateSession(c.ClientIP())
+	token, err := s.auth.CreateSession(c.ClientIP(), "admin")
 	if err != nil {
 		c.JSON(500, gin.H{"detail": "创建会话失败"})
 		return
@@ -153,7 +174,7 @@ func (s *Server) handleAuthSetup(c *gin.Context) {
 
 	c.SetCookie("macflow_token", token, int(auth.SessionTTL.Seconds()), "/", "", false, true)
 	s.audit.Log("auth_setup", "密码已设置")
-	c.JSON(200, gin.H{"ok": true, "message": "密码已设置", "token": token})
+	c.JSON(200, gin.H{"ok": true, "message": "密码已设置", "token": token, "role": "admin"})
 }
 
 // POST /api/auth/disable
@@ -181,6 +202,58 @@ func (s *Server) handleAuthDisable(c *gin.Context) {
 	s.auth.ClearSessions()
 	s.audit.Log("auth_disable", "认证已关闭")
 	c.JSON(200, gin.H{"ok": true, "message": "认证已关闭"})
+}
+
+// POST /api/auth/readonly — set or clear readonly password
+//
+// Body: {"password": "adminpwd", "readonly_password": "newpwd"}
+// To disable: {"password": "adminpwd", "readonly_password": ""}
+func (s *Server) handleAuthReadonly(c *gin.Context) {
+	var req struct {
+		Password         string `json:"password" binding:"required,max=512"`
+		ReadonlyPassword string `json:"readonly_password" binding:"max=512"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"detail": "请求格式错误"})
+		return
+	}
+
+	cfg := s.auth.LoadAuth()
+	if !auth.VerifyPassword(req.Password, cfg.PasswordHash) {
+		c.JSON(401, gin.H{"detail": "管理员密码错误"})
+		return
+	}
+
+	if req.ReadonlyPassword == "" {
+		// Disable readonly
+		cfg.ReadonlyEnabled = false
+		cfg.ReadonlyPasswordHash = ""
+		if err := s.auth.SaveAuth(cfg); err != nil {
+			c.JSON(500, gin.H{"detail": "保存失败"})
+			return
+		}
+		s.audit.Log("auth_readonly", "只读密码已清除")
+		c.JSON(200, gin.H{"ok": true, "message": "只读密码已清除", "readonly_enabled": false})
+		return
+	}
+
+	if len(req.ReadonlyPassword) < 6 {
+		c.JSON(400, gin.H{"detail": "只读密码不能少于6位"})
+		return
+	}
+	hash, err := auth.HashPassword(req.ReadonlyPassword)
+	if err != nil {
+		c.JSON(500, gin.H{"detail": "密码哈希失败"})
+		return
+	}
+	cfg.ReadonlyPasswordHash = hash
+	cfg.ReadonlyEnabled = true
+	if err := s.auth.SaveAuth(cfg); err != nil {
+		c.JSON(500, gin.H{"detail": "保存失败"})
+		return
+	}
+	s.audit.Log("auth_readonly", "只读密码已设置")
+	c.JSON(200, gin.H{"ok": true, "message": "只读密码已设置", "readonly_enabled": true})
 }
 
 // GET /api/status

@@ -75,6 +75,7 @@ func NewRouter(cfg *config.Config, store *state.Store, monitor *health.Monitor) 
 		api.POST("/auth/logout", s.handleAuthLogout)
 		api.POST("/auth/setup", s.handleAuthSetup)
 		api.POST("/auth/disable", s.handleAuthDisable)
+		api.POST("/auth/readonly", s.handleAuthReadonly)
 
 		// Status & Health
 		api.GET("/status", s.handleStatus)
@@ -90,50 +91,50 @@ func NewRouter(cfg *config.Config, store *state.Store, monitor *health.Monitor) 
 
 		// Settings
 		api.GET("/settings", s.handleSettings)
-		api.PUT("/settings", s.handleSettingsUpdate)
-		api.POST("/service/toggle", s.handleToggle)
+		api.PUT("/settings", s.readonlyGuard(), s.handleSettingsUpdate)
+		api.POST("/service/toggle", s.readonlyGuard(), s.handleToggle)
 
 		// Sources (3x-UI)
 		api.GET("/sources", s.handleSources)
-		api.POST("/sources", s.handleSourceCreate)
-		api.PUT("/sources/:sid", s.handleSourceUpdate)
-		api.DELETE("/sources/:sid", s.handleSourceDelete)
-		api.POST("/sources/:sid/sync", s.handleSourceSync)
+		api.POST("/sources", s.readonlyGuard(), s.handleSourceCreate)
+		api.PUT("/sources/:sid", s.readonlyGuard(), s.handleSourceUpdate)
+		api.DELETE("/sources/:sid", s.readonlyGuard(), s.handleSourceDelete)
+		api.POST("/sources/:sid/sync", s.readonlyGuard(), s.handleSourceSync)
 
 		// Nodes
 		api.GET("/nodes", s.handleNodes)
-		api.POST("/nodes/manual", s.handleNodeManual)
+		api.POST("/nodes/manual", s.readonlyGuard(), s.handleNodeManual)
 		api.POST("/nodes/import-link/preview", s.handleNodeImportPreview)
-		api.POST("/nodes/import-link", s.handleNodeImportLink)
-		api.POST("/nodes/sync-all", s.handleSyncAll)
-		api.PUT("/nodes/:tag", s.handleNodeUpdate)
-		api.DELETE("/nodes/:tag", s.handleNodeDelete)
-		api.POST("/nodes/batch", s.handleNodeBatch)
-		api.PUT("/nodes/:tag/toggle", s.handleNodeToggle)
+		api.POST("/nodes/import-link", s.readonlyGuard(), s.handleNodeImportLink)
+		api.POST("/nodes/sync-all", s.readonlyGuard(), s.handleSyncAll)
+		api.PUT("/nodes/:tag", s.readonlyGuard(), s.handleNodeUpdate)
+		api.DELETE("/nodes/:tag", s.readonlyGuard(), s.handleNodeDelete)
+		api.POST("/nodes/batch", s.readonlyGuard(), s.handleNodeBatch)
+		api.PUT("/nodes/:tag/toggle", s.readonlyGuard(), s.handleNodeToggle)
 		api.POST("/nodes/:tag/test", s.handleNodeTest)
 		api.POST("/nodes/:tag/speedtest", s.handleNodeSpeedtest)
-		api.POST("/nodes/health/refresh", s.handleNodesHealthRefresh)
+		api.POST("/nodes/health/refresh", s.readonlyGuard(), s.handleNodesHealthRefresh)
 
 		// Subscriptions
 		api.GET("/subscriptions", s.handleSubscriptions)
-		api.POST("/subscriptions", s.handleSubCreate)
-		api.PUT("/subscriptions/:sid", s.handleSubUpdate)
-		api.DELETE("/subscriptions/:sid", s.handleSubDelete)
-		api.POST("/subscriptions/:sid/sync", s.handleSubSync)
+		api.POST("/subscriptions", s.readonlyGuard(), s.handleSubCreate)
+		api.PUT("/subscriptions/:sid", s.readonlyGuard(), s.handleSubUpdate)
+		api.DELETE("/subscriptions/:sid", s.readonlyGuard(), s.handleSubDelete)
+		api.POST("/subscriptions/:sid/sync", s.readonlyGuard(), s.handleSubSync)
 
 		// Devices
 		api.GET("/devices", s.handleDevices)
-		api.POST("/devices", s.handleDeviceUpsert)
-		api.POST("/devices/batch", s.handleDeviceBatch)
-		api.PUT("/devices/:mac/node", s.handleDeviceSetNode)
-		api.PUT("/devices/:mac/remark", s.handleDeviceRemark)
-		api.PUT("/devices/:mac/ip", s.handleDeviceIP)
-		api.DELETE("/devices/:mac", s.handleDeviceDelete)
+		api.POST("/devices", s.readonlyGuard(), s.handleDeviceUpsert)
+		api.POST("/devices/batch", s.readonlyGuard(), s.handleDeviceBatch)
+		api.PUT("/devices/:mac/node", s.readonlyGuard(), s.handleDeviceSetNode)
+		api.PUT("/devices/:mac/remark", s.readonlyGuard(), s.handleDeviceRemark)
+		api.PUT("/devices/:mac/ip", s.readonlyGuard(), s.handleDeviceIP)
+		api.DELETE("/devices/:mac", s.readonlyGuard(), s.handleDeviceDelete)
 
 		// System
 		api.GET("/system/info", s.handleSystemInfo)
 		api.GET("/update/check", s.handleUpdateCheck)
-		api.POST("/update/apply", s.handleUpdateApply)
+		api.POST("/update/apply", s.readonlyGuard(), s.handleUpdateApply)
 
 		// Traffic & Connections
 		api.GET("/traffic/realtime", s.handleTrafficRealtime)
@@ -142,10 +143,17 @@ func NewRouter(cfg *config.Config, store *state.Store, monitor *health.Monitor) 
 		// SSE, Logs, DHCP, Apply
 		api.GET("/events", s.handleSSE)
 		api.GET("/logs", s.handleLogs)
-		api.POST("/logs/clear", s.handleLogsClear)
+		api.GET("/logs/tail", s.handleLogsTail)
+		api.POST("/logs/clear", s.readonlyGuard(), s.handleLogsClear)
 		api.GET("/dhcp/discover", s.handleDHCPDiscover)
-		api.POST("/apply", s.handleApply)
-		api.POST("/rollback", s.handleRollback)
+		api.GET("/dhcp/leases", s.handleDHCPLeases)
+		api.POST("/dhcp/bind", s.readonlyGuard(), s.handleDHCPBind)
+		api.DELETE("/dhcp/bind/:mac", s.readonlyGuard(), s.handleDHCPBindDelete)
+		api.POST("/apply", s.readonlyGuard(), s.handleApply)
+		api.POST("/rollback", s.readonlyGuard(), s.handleRollback)
+
+		// Metrics
+		api.GET("/metrics", s.handleMetrics)
 
 		// sing-box config
 		api.GET("/singbox/preview", s.handleSingboxPreview)
@@ -189,6 +197,7 @@ func NewTestRouter(cfg *config.Config, store *state.Store, monitor *health.Monit
 		api.POST("/auth/logout", s.handleAuthLogout)
 		api.POST("/auth/setup", s.handleAuthSetup)
 		api.POST("/auth/disable", s.handleAuthDisable)
+		api.POST("/auth/readonly", s.handleAuthReadonly)
 
 		api.GET("/status", s.handleStatus)
 		api.GET("/health", s.handleHealth)
@@ -201,55 +210,61 @@ func NewTestRouter(cfg *config.Config, store *state.Store, monitor *health.Monit
 		api.GET("/egress/router", s.handleEgressRouter)
 
 		api.GET("/settings", s.handleSettings)
-		api.PUT("/settings", s.handleSettingsUpdate)
-		api.POST("/service/toggle", s.handleToggle)
+		api.PUT("/settings", s.readonlyGuard(), s.handleSettingsUpdate)
+		api.POST("/service/toggle", s.readonlyGuard(), s.handleToggle)
 
 		api.GET("/sources", s.handleSources)
-		api.POST("/sources", s.handleSourceCreate)
-		api.PUT("/sources/:sid", s.handleSourceUpdate)
-		api.DELETE("/sources/:sid", s.handleSourceDelete)
-		api.POST("/sources/:sid/sync", s.handleSourceSync)
+		api.POST("/sources", s.readonlyGuard(), s.handleSourceCreate)
+		api.PUT("/sources/:sid", s.readonlyGuard(), s.handleSourceUpdate)
+		api.DELETE("/sources/:sid", s.readonlyGuard(), s.handleSourceDelete)
+		api.POST("/sources/:sid/sync", s.readonlyGuard(), s.handleSourceSync)
 
 		api.GET("/nodes", s.handleNodes)
-		api.POST("/nodes/manual", s.handleNodeManual)
+		api.POST("/nodes/manual", s.readonlyGuard(), s.handleNodeManual)
 		api.POST("/nodes/import-link/preview", s.handleNodeImportPreview)
-		api.POST("/nodes/import-link", s.handleNodeImportLink)
-		api.POST("/nodes/sync-all", s.handleSyncAll)
-		api.PUT("/nodes/:tag", s.handleNodeUpdate)
-		api.DELETE("/nodes/:tag", s.handleNodeDelete)
-		api.POST("/nodes/batch", s.handleNodeBatch)
-		api.PUT("/nodes/:tag/toggle", s.handleNodeToggle)
+		api.POST("/nodes/import-link", s.readonlyGuard(), s.handleNodeImportLink)
+		api.POST("/nodes/sync-all", s.readonlyGuard(), s.handleSyncAll)
+		api.PUT("/nodes/:tag", s.readonlyGuard(), s.handleNodeUpdate)
+		api.DELETE("/nodes/:tag", s.readonlyGuard(), s.handleNodeDelete)
+		api.POST("/nodes/batch", s.readonlyGuard(), s.handleNodeBatch)
+		api.PUT("/nodes/:tag/toggle", s.readonlyGuard(), s.handleNodeToggle)
 		api.POST("/nodes/:tag/test", s.handleNodeTest)
 		api.POST("/nodes/:tag/speedtest", s.handleNodeSpeedtest)
-		api.POST("/nodes/health/refresh", s.handleNodesHealthRefresh)
+		api.POST("/nodes/health/refresh", s.readonlyGuard(), s.handleNodesHealthRefresh)
 
 		api.GET("/subscriptions", s.handleSubscriptions)
-		api.POST("/subscriptions", s.handleSubCreate)
-		api.PUT("/subscriptions/:sid", s.handleSubUpdate)
-		api.DELETE("/subscriptions/:sid", s.handleSubDelete)
-		api.POST("/subscriptions/:sid/sync", s.handleSubSync)
+		api.POST("/subscriptions", s.readonlyGuard(), s.handleSubCreate)
+		api.PUT("/subscriptions/:sid", s.readonlyGuard(), s.handleSubUpdate)
+		api.DELETE("/subscriptions/:sid", s.readonlyGuard(), s.handleSubDelete)
+		api.POST("/subscriptions/:sid/sync", s.readonlyGuard(), s.handleSubSync)
 
 		api.GET("/devices", s.handleDevices)
-		api.POST("/devices", s.handleDeviceUpsert)
-		api.POST("/devices/batch", s.handleDeviceBatch)
-		api.PUT("/devices/:mac/node", s.handleDeviceSetNode)
-		api.PUT("/devices/:mac/remark", s.handleDeviceRemark)
-		api.PUT("/devices/:mac/ip", s.handleDeviceIP)
-		api.DELETE("/devices/:mac", s.handleDeviceDelete)
+		api.POST("/devices", s.readonlyGuard(), s.handleDeviceUpsert)
+		api.POST("/devices/batch", s.readonlyGuard(), s.handleDeviceBatch)
+		api.PUT("/devices/:mac/node", s.readonlyGuard(), s.handleDeviceSetNode)
+		api.PUT("/devices/:mac/remark", s.readonlyGuard(), s.handleDeviceRemark)
+		api.PUT("/devices/:mac/ip", s.readonlyGuard(), s.handleDeviceIP)
+		api.DELETE("/devices/:mac", s.readonlyGuard(), s.handleDeviceDelete)
 
 		api.GET("/system/info", s.handleSystemInfo)
 		api.GET("/update/check", s.handleUpdateCheck)
-		api.POST("/update/apply", s.handleUpdateApply)
+		api.POST("/update/apply", s.readonlyGuard(), s.handleUpdateApply)
 
 		api.GET("/traffic/realtime", s.handleTrafficRealtime)
 		api.GET("/traffic/connections", s.handleTrafficConnections)
 
 		api.GET("/events", s.handleSSE)
 		api.GET("/logs", s.handleLogs)
-		api.POST("/logs/clear", s.handleLogsClear)
+		api.GET("/logs/tail", s.handleLogsTail)
+		api.POST("/logs/clear", s.readonlyGuard(), s.handleLogsClear)
 		api.GET("/dhcp/discover", s.handleDHCPDiscover)
-		api.POST("/apply", s.handleApply)
-		api.POST("/rollback", s.handleRollback)
+		api.GET("/dhcp/leases", s.handleDHCPLeases)
+		api.POST("/dhcp/bind", s.readonlyGuard(), s.handleDHCPBind)
+		api.DELETE("/dhcp/bind/:mac", s.readonlyGuard(), s.handleDHCPBindDelete)
+		api.POST("/apply", s.readonlyGuard(), s.handleApply)
+		api.POST("/rollback", s.readonlyGuard(), s.handleRollback)
+
+		api.GET("/metrics", s.handleMetrics)
 
 		api.GET("/singbox/preview", s.handleSingboxPreview)
 	}
@@ -339,6 +354,7 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		}
 		cfg := s.auth.LoadAuth()
 		if !cfg.AuthEnabled {
+			c.Set("role", "admin")
 			c.Next()
 			return
 		}
@@ -358,6 +374,11 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 			}
 		}
 		if s.auth.ValidateSession(token) {
+			role := s.auth.GetSessionRole(token)
+			if role == "" {
+				role = "admin"
+			}
+			c.Set("role", role)
 			c.Next()
 			return
 		}
@@ -365,6 +386,20 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 			"detail":        "认证失败，请重新登录",
 			"auth_required": true,
 		})
+	}
+}
+
+// readonlyGuard blocks write operations for readonly sessions.
+func (s *Server) readonlyGuard() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role == "readonly" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"detail": "只读模式，无权执行此操作",
+			})
+			return
+		}
+		c.Next()
 	}
 }
 

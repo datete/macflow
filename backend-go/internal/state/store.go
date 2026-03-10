@@ -22,10 +22,20 @@ type State struct {
 	Subscriptions   []Subscription  `json:"subscriptions"`
 	Nodes           []Node          `json:"nodes"`
 	Devices         []Device        `json:"devices"`
+	DHCPBindings    []DHCPBinding   `json:"dhcp_bindings,omitempty"`
 	LastSync        int64           `json:"last_sync"`
 	LastApply       int64           `json:"last_apply"`
 	PolicyVersion   *string         `json:"policy_version"`
 	RollbackVersion *string         `json:"rollback_version"`
+}
+
+// DHCPBinding represents a static DHCP IP binding.
+type DHCPBinding struct {
+	MAC      string `json:"mac"`
+	IP       string `json:"ip"`
+	Hostname string `json:"hostname,omitempty"`
+	Remark   string `json:"remark,omitempty"`
+	Created  int64  `json:"created"`
 }
 
 // DNSConfig holds DNS-related settings.

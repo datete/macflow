@@ -102,7 +102,7 @@ func TestSessionLifecycle(t *testing.T) {
 	mgr := NewManager(t.TempDir())
 
 	// Create session
-	token, err := mgr.CreateSession("127.0.0.1")
+	token, err := mgr.CreateSession("127.0.0.1", "admin")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -134,8 +134,8 @@ func TestSessionLifecycle(t *testing.T) {
 func TestClearSessions(t *testing.T) {
 	mgr := NewManager(t.TempDir())
 
-	tok1, _ := mgr.CreateSession("1.1.1.1")
-	tok2, _ := mgr.CreateSession("2.2.2.2")
+	tok1, _ := mgr.CreateSession("1.1.1.1", "admin")
+	tok2, _ := mgr.CreateSession("2.2.2.2", "readonly")
 
 	mgr.ClearSessions()
 

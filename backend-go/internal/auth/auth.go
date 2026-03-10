@@ -55,8 +55,10 @@ var PublicPrefixes = []string{"/captive"}
 
 // AuthConfig represents the stored authentication configuration.
 type AuthConfig struct {
-	PasswordHash string `json:"password_hash"`
-	AuthEnabled  bool   `json:"auth_enabled"`
+	PasswordHash         string `json:"password_hash"`
+	AuthEnabled          bool   `json:"auth_enabled"`
+	ReadonlyPasswordHash string `json:"readonly_password_hash,omitempty"`
+	ReadonlyEnabled      bool   `json:"readonly_enabled,omitempty"`
 }
 
 // Session represents an active user session.
@@ -65,6 +67,7 @@ type Session struct {
 	ClientIP  string    `json:"client_ip"`
 	CreatedAt time.Time `json:"created_at"`
 	ExpiresAt time.Time `json:"expires_at"`
+	Role      string    `json:"role"` // "admin" or "readonly"
 }
 
 // Manager handles authentication operations.
@@ -154,7 +157,11 @@ func (m *Manager) SaveAuth(cfg AuthConfig) error {
 }
 
 // CreateSession creates a new session and returns its token.
-func (m *Manager) CreateSession(clientIP string) (string, error) {
+// role should be "admin" or "readonly".
+func (m *Manager) CreateSession(clientIP string, role string) (string, error) {
+	if role == "" {
+		role = "admin"
+	}
 	token := make([]byte, 32)
 	if _, err := rand.Read(token); err != nil {
 		return "", err
@@ -165,6 +172,7 @@ func (m *Manager) CreateSession(clientIP string) (string, error) {
 		ClientIP:  clientIP,
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(SessionTTL),
+		Role:      role,
 	}
 	m.sessions.Store(tokenHex, sess)
 	return tokenHex, nil
@@ -185,6 +193,27 @@ func (m *Manager) ValidateSession(token string) bool {
 		return false
 	}
 	return true
+}
+
+// GetSessionRole returns the role of a valid session token.
+// Returns "" if the token is invalid.
+func (m *Manager) GetSessionRole(token string) string {
+	if token == "" {
+		return ""
+	}
+	val, ok := m.sessions.Load(token)
+	if !ok {
+		return ""
+	}
+	sess := val.(Session)
+	if time.Now().After(sess.ExpiresAt) {
+		m.sessions.Delete(token)
+		return ""
+	}
+	if sess.Role == "" {
+		return "admin"
+	}
+	return sess.Role
 }
 
 // DeleteSession removes a specific session.

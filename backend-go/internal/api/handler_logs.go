@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -129,6 +130,107 @@ func (s *Server) handleLogsClear(c *gin.Context) {
 	}
 	s.audit.Log("logs_clear", "all logs cleared")
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// handleLogsTail streams new log lines as SSE events (real-time log tail).
+//
+// GET /api/logs/tail?token=xxx
+func (s *Server) handleLogsTail(c *gin.Context) {
+	// SSE-style auth (also accept token query param)
+	authCfg := s.auth.LoadAuth()
+	if authCfg.AuthEnabled {
+		token := c.Query("token")
+		if token == "" {
+			token = extractToken(c)
+		}
+		if !s.auth.ValidateSession(token) {
+			c.JSON(http.StatusUnauthorized, gin.H{"detail": "认证失败"})
+			return
+		}
+	}
+
+	logPath := filepath.Join(s.cfg.DataDir, logFileName)
+
+	// SSE headers
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+
+	// Send connected event
+	fmt.Fprintf(c.Writer, "event: connected\ndata: {\"tail\":true}\n\n")
+	c.Writer.Flush()
+
+	ctx := c.Request.Context()
+
+	// Start tailing from current end-of-file
+	var offset int64
+	if fi, err := os.Stat(logPath); err == nil {
+		offset = fi.Size()
+	}
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	keepalive := time.NewTicker(25 * time.Second)
+	defer keepalive.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-keepalive.C:
+			fmt.Fprint(c.Writer, ": keepalive\n\n")
+			c.Writer.Flush()
+		case <-ticker.C:
+			fi, err := os.Stat(logPath)
+			if err != nil {
+				continue
+			}
+			if fi.Size() <= offset {
+				continue
+			}
+
+			f, err := os.Open(logPath)
+			if err != nil {
+				continue
+			}
+			f.Seek(offset, 0)
+			scanner := bufio.NewScanner(f)
+			scanner.Buffer(make([]byte, 512*1024), 512*1024)
+			var newLines []string
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+				if line != "" {
+					newLines = append(newLines, line)
+				}
+			}
+			newOffset, _ := f.Seek(0, 2) // seek to end for new offset
+			f.Close()
+			offset = newOffset
+
+			for _, line := range newLines {
+				var entry map[string]interface{}
+				if json.Unmarshal([]byte(line), &entry) != nil {
+					entry = map[string]interface{}{
+						"ts":        "",
+						"level":     "info",
+						"component": "system",
+						"event":     "legacy",
+						"message":   line,
+					}
+				}
+				jsonBytes, err := json.Marshal(entry)
+				if err != nil {
+					continue
+				}
+				fmt.Fprintf(c.Writer, "event: log_line\ndata: %s\n\n", string(jsonBytes))
+			}
+			if len(newLines) > 0 {
+				c.Writer.Flush()
+			}
+		}
+	}
 }
 
 // tailLogFile reads the last N lines from a file efficiently.
